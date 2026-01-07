@@ -1,301 +1,269 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Habit Tracker</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Habit Tracker</title>
 
-<!-- Supabase UMD -->
-<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <!-- Supabase JS -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
-<!-- Day.js CDN -->
-<script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.8/dayjs.min.js"></script>
+  <!-- React CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 
-<style>
-body { font-family: sans-serif; padding: 20px; margin:0; }
-h1 { margin-bottom: 20px; }
-button { margin: 5px; }
-#tabs button { margin-right: 10px; }
-.tab-content { margin-top: 20px; }
-.habit-row { display: flex; align-items: center; margin-bottom: 10px; }
-.habit-row div { margin-right: 10px; }
-.progress-bar-container { background: #eee; width: 150px; height: 20px; border-radius: 4px; overflow: hidden; }
-.progress-bar { height: 100%; background: #4caf50; text-align: center; color: white; font-size: 12px; }
-.modal-bg { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); display:flex; justify-content:center; align-items:center; }
-.modal { background:white; padding:20px; border-radius:8px; min-width:300px; }
-textarea { width: 200px; height: 50px; }
-</style>
+  <!-- Day.js -->
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.8/dayjs.min.js"></script>
+
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    textarea { width: 300px; height: 50px; }
+    hr { margin: 10px 0; }
+    .modal-bg {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.4);
+      display: flex; justify-content: center; align-items: center;
+    }
+    .modal { background: white; padding: 20px; border-radius: 8px; min-width: 300px; }
+    .tabs button { margin-right: 10px; }
+  </style>
 </head>
 <body>
-<h1>Habit Tracker</h1>
-<div id="auth-container"></div>
-
-<div id="tabs" style="display:none;">
-  <button onclick="showTab('dashboard')">Dashboard</button>
-  <button onclick="showTab('activity')">Activity</button>
-  <button onclick="showTab('settings')">Settings</button>
-</div>
-
-<div id="tab-content" class="tab-content"></div>
-
-<div id="modal-container"></div>
-
-<script>
-// ---------------------
-// 1️⃣ Supabase setup
-// ---------------------
-const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_3ZM5ByDTEwo3GS8KCbNHtw_zi6ewd6b";
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-let currentUser = null;
-let currentProfile = null;
-let currentTab = 'dashboard';
-
-// ---------------------
-// 2️⃣ Auth
-// ---------------------
-async function signIn() {
-  const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin }});
-  if(error) alert(error.message);
-}
-
-async function signOut() {
-  await supabaseClient.auth.signOut();
-  window.location.reload();
-}
-
-// ---------------------
-// 3️⃣ Tabs
-// ---------------------
-function showTab(tabName) {
-  currentTab = tabName;
-  renderTab();
-}
-
-// ---------------------
-// 4️⃣ Render main UI
-// ---------------------
-async function renderApp() {
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  const authContainer = document.getElementById('auth-container');
-  const tabsContainer = document.getElementById('tabs');
-
-  if(!session) {
-    authContainer.innerHTML = `<button onclick="signIn()">Sign in with Google</button>`;
-    tabsContainer.style.display = 'none';
-    document.getElementById('tab-content').innerHTML = '';
-    return;
-  }
-
-  currentUser = session.user;
-
-  // fetch profile
-  let { data: profile } = await supabaseClient
-    .from('profiles')
-    .select('*')
-    .eq('id', currentUser.id)
-    .single();
-
-  if(!profile || !profile.first_name) {
-    promptProfile();
-    return;
-  }
-  currentProfile = profile;
-
-  authContainer.innerHTML = `Welcome, ${currentProfile.first_name} ${currentProfile.last_name} <button onclick="signOut()">Logout</button>`;
-  tabsContainer.style.display = 'block';
-  renderTab();
-}
-
-// ---------------------
-// 5️⃣ Profile modal
-// ---------------------
-function promptProfile() {
-  const container = document.getElementById('modal-container');
-  container.innerHTML = `
-  <div class="modal-bg">
-    <div class="modal">
-      <h3>Set up your profile</h3>
-      <input id="first-name" placeholder="First Name"/><br/>
-      <input id="last-name" placeholder="Last Name"/><br/>
-      <button onclick="saveProfile()">Save</button>
-    </div>
+  <h1>Habit Tracker</h1>
+  <div id="auth-container"></div>
+  <div class="tabs">
+    <button onclick="switchTab('dashboard')">Dashboard</button>
+    <button onclick="switchTab('activity')">Activity</button>
+    <button onclick="switchTab('settings')">Settings</button>
   </div>
-  `;
-}
+  <div id="tab-content"></div>
 
-async function saveProfile() {
-  const firstName = document.getElementById('first-name').value.trim();
-  const lastName = document.getElementById('last-name').value.trim();
-  if(!firstName || !lastName) { alert('Please enter both names'); return; }
+  <!-- Profile modal container -->
+  <div id="modal-container"></div>
 
-  await supabaseClient.from('profiles').upsert([{ id: currentUser.id, first_name:firstName, last_name:lastName }]);
-  document.getElementById('modal-container').innerHTML = '';
-  renderApp();
-}
+  <script>
+    // ---------------------
+    // 1️⃣ Supabase setup
+    // ---------------------
+    const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_3ZM5ByDTEwo3GS8KCbNHtw_zi6ewd6b";
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ---------------------
-// 6️⃣ Render Tabs
-// ---------------------
-async function renderTab() {
-  const content = document.getElementById('tab-content');
-  if(currentTab==='dashboard') await renderDashboard(content);
-  else if(currentTab==='activity') await renderActivity(content);
-  else if(currentTab==='settings') renderSettings(content);
-}
+    let currentUser = null;
+    let currentProfile = null;
+    let currentTab = 'dashboard';
+    const today = dayjs().format("YYYY-MM-DD");
 
-// ---------------------
-// 7️⃣ Dashboard
-// ---------------------
-async function renderDashboard(container) {
-  // fetch habits
-  const { data: habits } = await supabaseClient
-    .from('habits')
-    .select('*')
-    .eq('user_id', currentUser.id);
+    // ---------------------
+    // 2️⃣ Auth functions
+    // ---------------------
+    async function signInWithGoogle() {
+      const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
+      if (error) alert(error.message);
+    }
 
-  // fetch habit logs
-  const { data: logs } = await supabaseClient
-    .from('habit_logs')
-    .select('*')
-    .eq('user_id', currentUser.id);
+    async function signOut() {
+      await supabaseClient.auth.signOut();
+      window.location.reload();
+    }
 
-  container.innerHTML = `<h2>Dashboard <button onclick="openCreateGoalModal()">+ Add Goal</button></h2>`;
+    // ---------------------
+    // 3️⃣ Tab switcher
+    // ---------------------
+    function switchTab(tab) {
+      currentTab = tab;
+      renderTab();
+    }
 
-  habits.forEach(habit => {
-    const habitLogs = logs.filter(l=>l.habit_id===habit.id);
-    const completedToday = habitLogs.some(l=>l.date===dayjs().format('YYYY-MM-DD'));
-    const weeklyCount = habitLogs.filter(l=>dayjs(l.date).week()===dayjs().week()).length;
-    const monthlyCount = habitLogs.filter(l=>dayjs(l.date).month()===dayjs().month()).length;
+    function renderTab() {
+      const container = document.getElementById('tab-content');
+      container.innerHTML = '';
 
-    const progressPercent = Math.min(100, ((weeklyCount / habit.target) * 100).toFixed(1));
-    const row = document.createElement('div');
-    row.className = 'habit-row';
-    row.innerHTML = `
-      <div>
-        <input type="checkbox" ${completedToday?'checked':''} onchange="toggleHabit(${habit.id}, this.checked)">
-      </div>
-      <div>
-        ${habit.name} (${habit.category}/${habit.subtype}) - ${habit.goal_type} <br/>
-        <textarea placeholder="Reflection">${habitLogs.find(l=>l.date===dayjs().format('YYYY-MM-DD'))?.reflection_text || ''}</textarea><br/>
-        <button onclick="postActivity(${habit.id})">Post</button>
-      </div>
-      <div>
-        <div class="progress-bar-container">
-          <div class="progress-bar" style="width:${progressPercent}%">${weeklyCount}/${habit.target} (${progressPercent}%)</div>
+      if (!currentUser) return;
+
+      if (currentTab === 'dashboard') {
+        renderDashboard();
+      } else if (currentTab === 'activity') {
+        renderActivity();
+      } else if (currentTab === 'settings') {
+        container.innerHTML = `
+          <button onclick="signOut()">Log Out</button>
+          <button onclick="showProfileModal(currentUser)">Edit Profile</button>
+        `;
+      }
+    }
+
+    // ---------------------
+    // 4️⃣ Render app
+    // ---------------------
+    async function renderApp() {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      const authContainer = document.getElementById('auth-container');
+
+      if (!session) {
+        authContainer.innerHTML = `<button onclick="signInWithGoogle()">Sign in with Google</button>`;
+        document.getElementById('tab-content').innerHTML = '';
+        return;
+      }
+
+      currentUser = session.user;
+      authContainer.innerHTML = `<p>Welcome, ${currentUser.email}</p>`;
+
+      await checkAndPromptProfile(currentUser);
+      renderTab();
+    }
+
+    // ---------------------
+    // 5️⃣ Profile modal
+    // ---------------------
+    async function checkAndPromptProfile(user) {
+      try {
+        const { data: profile, error } = await supabaseClient
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') throw error;
+
+        if (!profile || !profile.first_name) {
+          showProfileModal(user);
+        } else {
+          currentProfile = profile;
+        }
+      } catch (err) {
+        console.error('Error checking profile:', err.message);
+      }
+    }
+
+    function showProfileModal(user) {
+      const container = document.getElementById('modal-container');
+      container.innerHTML = `
+        <div class="modal-bg">
+          <div class="modal">
+            <h3>Set up your profile</h3>
+            <input id="first-name" placeholder="First Name"/><br/>
+            <input id="last-name" placeholder="Last Name"/><br/>
+            <button id="save-profile-btn">Save</button>
+          </div>
         </div>
-      </div>
-    `;
-    container.appendChild(row);
-  });
-}
+      `;
 
-// ---------------------
-// 8️⃣ Toggle Habit
-// ---------------------
-async function toggleHabit(habitId, completed) {
-  const today = dayjs().format('YYYY-MM-DD');
-  let { data, error } = await supabaseClient
-    .from('habit_logs')
-    .upsert([{ user_id: currentUser.id, habit_id: habitId, date: today, completed }]);
-  if(error) console.error(error);
-  renderTab(); // re-render dashboard
-}
+      document.getElementById('save-profile-btn').onclick = async () => {
+        const firstName = document.getElementById('first-name').value.trim();
+        const lastName = document.getElementById('last-name').value.trim();
+        if (!firstName || !lastName) {
+          alert('Please enter both first and last name.');
+          return;
+        }
 
-// ---------------------
-// 9️⃣ Post Activity
-// ---------------------
-async function postActivity(habitId) {
-  alert('Activity posted!');
-  // optionally insert into Supabase activity table if exists
-}
+        try {
+          const { data, error } = await supabaseClient
+            .from('profiles')
+            .upsert([{ id: user.id, first_name: firstName, last_name: lastName }], { onConflict: 'id' });
+          if (error) throw error;
 
-// ---------------------
-// 10️⃣ Activity Tab
-// ---------------------
-async function renderActivity(container) {
-  const { data: logs } = await supabaseClient
-    .from('habit_logs')
-    .select('*, habit:habits(name, category, subtype), profile:profiles(first_name,last_name)')
-    .order('date', {ascending:false})
-    .limit(50);
+          currentProfile = { first_name: firstName, last_name: lastName };
+          container.innerHTML = '';
+          renderTab();
+        } catch (err) {
+          console.error('Error saving profile:', err.message);
+          alert('Failed to save profile.');
+        }
+      };
+    }
 
-  container.innerHTML = `<h2>Activity Feed</h2>`;
+    // ---------------------
+    // 6️⃣ Render dashboard
+    // ---------------------
+    async function renderDashboard() {
+      const container = document.getElementById('tab-content');
+      container.innerHTML = '';
 
-  logs.forEach(log => {
-    const div = document.createElement('div');
-    div.style.border='1px solid #ccc';
-    div.style.padding='5px';
-    div.style.marginBottom='5px';
-    div.innerHTML = `<b>${log.profile.first_name} ${log.profile.last_name}</b> | ${log.habit.name} (${log.habit.category}/${log.habit.subtype}) | ${log.reflection_text || ''} | ${log.date}`;
-    container.appendChild(div);
-  });
-}
+      // Fetch habits for user
+      const { data: habits } = await supabaseClient
+        .from('habits')
+        .select('*')
+        .eq('user_id', currentUser.id);
 
-// ---------------------
-// 11️⃣ Settings
-// ---------------------
-function renderSettings(container) {
-  container.innerHTML = `
-    <h2>Settings</h2>
-    <button onclick="signOut()">Logout</button>
-    <button onclick="promptProfile()">Edit Profile</button>
-  `;
-}
+      if (!habits) return;
 
-// ---------------------
-// 12️⃣ Create Goal Modal
-// ---------------------
-function openCreateGoalModal() {
-  const container = document.getElementById('modal-container');
-  container.innerHTML = `
-  <div class="modal-bg">
-    <div class="modal">
-      <h3>Create New Goal</h3>
-      <input id="goal-name" placeholder="Habit Name"/><br/>
-      <input id="goal-category" placeholder="Category"/><br/>
-      <input id="goal-subtype" placeholder="Subtype"/><br/>
-      <select id="goal-type">
-        <option value="daily">Daily</option>
-        <option value="weekly">Weekly</option>
-        <option value="monthly">Monthly</option>
-      </select><br/>
-      <input id="goal-target" placeholder="Target number" type="number"/><br/>
-      <input id="goal-units" placeholder="Units"/><br/>
-      <button onclick="saveGoal()">Save</button>
-      <button onclick="closeCreateGoalModal()">Cancel</button>
-    </div>
-  </div>
-  `;
-}
+      habits.forEach(habit => {
+        const div = document.createElement('div');
+        div.innerHTML = `
+          <strong>${habit.name}</strong> (${habit.category}) [${habit.goal_type}]<br/>
+          <input type="checkbox" id="habit-${habit.id}"/> Reflection: <textarea></textarea>
+          <button class="post-btn">Post</button>
+          <div class="progress-bar" style="width:200px;height:15px;background:#eee;margin-top:5px;"></div>
+          <hr/>
+        `;
+        container.appendChild(div);
 
-function closeCreateGoalModal() {
-  document.getElementById('modal-container').innerHTML = '';
-}
+        const checkbox = div.querySelector(`#habit-${habit.id}`);
+        const textarea = div.querySelector('textarea');
+        const postBtn = div.querySelector('.post-btn');
+        const progress = div.querySelector('.progress-bar');
 
-async function saveGoal() {
-  const name = document.getElementById('goal-name').value.trim();
-  const category = document.getElementById('goal-category').value.trim();
-  const subtype = document.getElementById('goal-subtype').value.trim();
-  const goal_type = document.getElementById('goal-type').value;
-  const target = parseFloat(document.getElementById('goal-target').value);
-  const units = document.getElementById('goal-units').value.trim();
-  if(!name||!category||!subtype||!goal_type||!target) { alert('Please fill all fields'); return; }
+        checkbox.addEventListener('change', async () => {
+          const completed = checkbox.checked;
+          await supabaseClient.from('habit_logs').upsert([{
+            user_id: currentUser.id,
+            habit_id: habit.id,
+            date: today,
+            completed: completed,
+            reflection_text: textarea.value
+          }]);
+          // update progress visually
+          progress.style.width = (completed ? 100 : 0) + 'px';
+        });
 
-  await supabaseClient.from('habits').insert([{
-    user_id: currentUser.id,
-    name, category, subtype, goal_type, target, units
-  }]);
-  closeCreateGoalModal();
-  renderTab();
-}
+        postBtn.addEventListener('click', () => {
+          alert(`Posted "${habit.name}" activity!`);
+        });
+      });
+    }
 
-// ---------------------
-// 13️⃣ Initial load
-// ---------------------
-supabaseClient.auth.onAuthStateChange(() => renderApp());
-renderApp();
-</script>
+    // ---------------------
+    // 7️⃣ Render activity
+    // ---------------------
+    async function renderActivity() {
+      const container = document.getElementById('tab-content');
+      container.innerHTML = '<h3>Activity Log</h3>';
+
+      const { data: logs } = await supabaseClient
+        .from('habit_logs')
+        .select(`
+          habit_id,
+          completed,
+          reflection_text,
+          created_at,
+          user_id,
+          habits(name)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (!logs) return;
+
+      logs.forEach(log => {
+        const div = document.createElement('div');
+        div.innerHTML = `
+          <strong>${log.user_id}</strong> - ${log.habits?.name || 'Habit'} 
+          | Reflection: ${log.reflection_text || ''}
+          | Completed: ${log.completed}
+          | ${dayjs(log.created_at).format('YYYY-MM-DD')}
+          <hr/>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    // ---------------------
+    // 8️⃣ Initial load + auth listener
+    // ---------------------
+    supabaseClient.auth.onAuthStateChange(() => renderApp());
+    renderApp();
+
+  </script>
 </body>
 </html>
