@@ -5,53 +5,55 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Habit Tracker</title>
 
-  <!-- Supabase UMD (Browser global) -->
-  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <!-- Supabase JS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.90.0/dist/supabase.min.js"></script>
 
   <style>
     body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
     h1 { text-align: center; }
-    textarea { width: 100%; height: 50px; margin-top: 5px; }
-    .habit { border-bottom: 1px solid #ccc; padding: 10px 0; }
-    .habit label { font-weight: bold; }
+    button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+    #habit-dashboard div { margin-bottom: 15px; }
+    textarea { width: 100%; height: 50px; }
   </style>
 </head>
 <body>
   <h1>Habit Tracker</h1>
-
   <div id="auth-container"></div>
   <div id="habit-dashboard"></div>
 
   <script>
-    // -------------------------------
-    // 1️⃣ Supabase setup (pre-filled)
-    // -------------------------------
+    // ---------------------
+    // 1️⃣ Supabase setup
+    // ---------------------
     const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co";
     const SUPABASE_ANON_KEY = "sb_secret_QCnsOinMqa6pdqOTJrCCAA_XMhKqGBl";
 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    const today = new Date().toISOString().split('T')[0];
-
-    // -------------------------------
-    // 2️⃣ OAuth redirect handling
-    // -------------------------------
+    // ---------------------
+    // 2️⃣ Handle OAuth redirect
+    // ---------------------
     async function handleRedirect() {
       try {
         const { data, error } = await supabaseClient.auth.getSessionFromUrl({ storeSession: true });
-        if (error) console.error("Redirect capture error:", error.message);
-        else if (data.session) console.log("OAuth session captured:", data.session);
+        if (error) console.error("Error handling redirect:", error.message);
+        else if (data.session) console.log("Redirect session captured:", data.session);
+
+        // remove hash from URL for cleanliness
+        if (window.location.hash) {
+          history.replaceState(null, null, window.location.pathname);
+        }
       } catch (err) {
-        console.error("Redirect handling failed:", err);
+        console.error(err);
       }
     }
 
-    // -------------------------------
+    // ---------------------
     // 3️⃣ Auth functions
-    // -------------------------------
+    // ---------------------
     async function signInWithGoogle() {
-      const { error } = await supabaseClient.auth.signInWithOAuth({ provider: "google" });
-      if (error) alert("Login error: " + error.message);
+      const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
+      if (error) alert(error.message);
     }
 
     async function signOut() {
@@ -59,101 +61,64 @@
       window.location.reload();
     }
 
-    // -------------------------------
-    // 4️⃣ Render login/dashboard
-    // -------------------------------
+    // ---------------------
+    // 4️⃣ Render login / dashboard
+    // ---------------------
     async function renderApp() {
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      const authContainer = document.getElementById("auth-container");
-      const habitContainer = document.getElementById("habit-dashboard");
+      const { data: sessionData } = await supabaseClient.auth.getSession();
+      const session = sessionData.session;
+
+      const authContainer = document.getElementById('auth-container');
+      const habitContainer = document.getElementById('habit-dashboard');
 
       if (!session) {
-        authContainer.innerHTML = `<button id="loginBtn">Sign in with Google</button>`;
-        habitContainer.innerHTML = "";
-        document.getElementById("loginBtn").onclick = signInWithGoogle;
+        authContainer.innerHTML = `<button onclick="signInWithGoogle()">Sign in with Google</button>`;
+        habitContainer.innerHTML = '';
         return;
       }
 
       authContainer.innerHTML = `
         <p>Welcome, ${session.user.email}</p>
-        <button id="logoutBtn">Sign Out</button>
+        <button onclick="signOut()">Sign Out</button>
       `;
-      document.getElementById("logoutBtn").onclick = signOut;
 
-      fetchAndRenderHabits(session.user.id);
+      renderDummyHabits();
     }
 
-    // -------------------------------
-    // 5️⃣ Fetch & render habits
-    // -------------------------------
-    async function fetchAndRenderHabits(userId) {
-      const { data: habits, error } = await supabaseClient
-        .from("habits")
-        .select("*")
-        .eq("user_id", userId);
+    // ---------------------
+    // 5️⃣ Dummy habits for testing
+    // ---------------------
+    function renderDummyHabits() {
+      const container = document.getElementById('habit-dashboard');
+      container.innerHTML = '';
 
-      if (error) { console.error(error); return; }
+      const dummyHabits = [
+        { id: 1, name: "Exercise", category: "Fitness", has_text_input: true },
+        { id: 2, name: "Read", category: "Learning", has_text_input: true },
+        { id: 3, name: "Meditate", category: "Mindfulness", has_text_input: false },
+      ];
 
-      const container = document.getElementById("habit-dashboard");
-      container.innerHTML = "";
-
-      habits.forEach(habit => {
-        const div = document.createElement("div");
-        div.className = "habit";
+      dummyHabits.forEach(habit => {
+        const div = document.createElement('div');
         div.innerHTML = `
-          <label><input type="checkbox" id="habit-${habit.id}" /> ${habit.name} (${habit.category})</label>
-          ${habit.has_text_input ? '<textarea placeholder="Add reflection..."></textarea>' : ''}
-          <div>
-            Share with group? <input type="checkbox" class="share-toggle" ${habit.has_text_input ? 'disabled' : ''}/>
-          </div>
+          <strong>${habit.name} (${habit.category})</strong><br/>
+          Completed: <input type="checkbox" id="habit-${habit.id}" />
+          ${habit.has_text_input ? '<br/><textarea placeholder="Add reflection..."></textarea>' : ''}
+          <br/>Share with group? <input type="checkbox" />
+          <hr/>
         `;
         container.appendChild(div);
-
-        const checkbox = div.querySelector(`#habit-${habit.id}`);
-        const textarea = div.querySelector("textarea");
-        const shareToggle = div.querySelector(".share-toggle");
-
-        if (textarea) {
-          textarea.addEventListener("input", () => {
-            shareToggle.checked = textarea.value.length > 0;
-          });
-        }
-
-        checkbox.addEventListener("change", () => 
-          saveHabitLog(userId, habit, checkbox.checked, textarea ? textarea.value : "", shareToggle.checked)
-        );
       });
     }
 
-    // -------------------------------
-    // 6️⃣ Save habit log
-    // -------------------------------
-    async function saveHabitLog(userId, habit, completed, reflectionText = "", share = false) {
-      const { data, error } = await supabaseClient
-        .from("habit_logs")
-        .upsert([{
-          user_id: userId,
-          habit_id: habit.id,
-          date: today,
-          completed: completed,
-          reflection_text: reflectionText,
-          share_toggle: share
-        }])
-        .select();
+    // ---------------------
+    // 6️⃣ On load
+    // ---------------------
+    handleRedirect().then(() => renderApp());
 
-      if (error) console.error("Error saving habit log:", error);
-      else console.log("Saved habit log:", data);
-    }
-
-    // -------------------------------
-    // 7️⃣ Listen for auth changes
-    // -------------------------------
+    // Listen to auth changes (sign out from another tab, etc.)
     supabaseClient.auth.onAuthStateChange(() => renderApp());
 
-    // -------------------------------
-    // 8️⃣ Initial load
-    // -------------------------------
-    handleRedirect().then(() => renderApp());
   </script>
 </body>
 </html>
