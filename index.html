@@ -14,6 +14,8 @@
     .progress-bar-fill { background: green; height: 100%; }
     textarea { width: 300px; height: 50px; }
     hr { margin: 15px 0; }
+    table { border-collapse: collapse; margin-top: 10px; }
+    td, th { border: 1px solid #aaa; padding: 5px; text-align: center; }
   </style>
 </head>
 <body>
@@ -23,35 +25,41 @@
   <!-- Tab buttons -->
   <div>
     <button onclick="showTab('dashboard')">Dashboard</button>
+    <button onclick="showTab('weekly')">Weekly View</button>
     <button onclick="showTab('settings')">Settings</button>
   </div>
 
   <!-- Tabs -->
   <div id="dashboard" class="tab"></div>
+  <div id="weekly" class="tab"></div>
   <div id="settings" class="tab">
     <button onclick="logout()">Log Out</button>
   </div>
 
   <script>
     // ---------------------
-    // 1️⃣ Tabs
+    // Tabs
     // ---------------------
     function showTab(tabId) {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.getElementById(tabId).classList.add('active');
+
+      if (tabId === 'weekly') renderWeeklyView();
     }
 
     // ---------------------
-    // 2️⃣ Dummy habits
+    // Dummy habits
     // ---------------------
     const dummyHabits = [
-      { id: 1, name: 'Read', category: 'Personal', has_text_input: true, goal_per_week: 3 },
-      { id: 2, name: 'Exercise', category: 'Fitness', has_text_input: true, goal_per_week: 4 },
-      { id: 3, name: 'Meditate', category: 'Wellness', has_text_input: true, goal_per_week: 7 }
+      { id: 1, name: 'Read', category: 'Personal', has_text_input: true, goal_per_week: 3, completedCount: 0 },
+      { id: 2, name: 'Exercise', category: 'Fitness', has_text_input: true, goal_per_week: 4, completedCount: 0 },
+      { id: 3, name: 'Meditate', category: 'Wellness', has_text_input: true, goal_per_week: 7, completedCount: 0 }
     ];
 
+    const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
     // ---------------------
-    // 3️⃣ Render dashboard
+    // Render Dashboard
     // ---------------------
     function renderDashboard() {
       const container = document.getElementById('dashboard');
@@ -75,46 +83,70 @@
 
         const checkbox = div.querySelector(`#habit-${habit.id}`);
         checkbox.addEventListener('change', () => {
-          alert(`Checked habit: ${habit.name}`);
-          updateProgress(habit.id, checkbox.checked);
+          habit.completedCount = checkbox.checked ? 1 : 0;
+          updateProgress(habit.id);
         });
       });
     }
 
     // ---------------------
-    // 4️⃣ Update progress bar
+    // Update progress
     // ---------------------
-    function updateProgress(habitId, completed) {
+    function updateProgress(habitId) {
       const habit = dummyHabits.find(h => h.id === habitId);
       const div = document.getElementById('dashboard').querySelector(`#habit-${habitId}`).parentElement;
       const progressFill = div.querySelector('.progress-bar-fill');
       const progressText = div.querySelector('.progress-bar span');
 
-      // For testing: just toggle 50% if checked, 0% if unchecked
-      if (completed) {
-        progressFill.style.width = '50%';
-        progressText.textContent = `1/${habit.goal_per_week} (50%)`;
-      } else {
-        progressFill.style.width = '0%';
-        progressText.textContent = `0/${habit.goal_per_week} (0%)`;
-      }
+      const fraction = habit.completedCount / habit.goal_per_week;
+      const percent = Math.min(fraction * 100, 100).toFixed(1);
+
+      progressFill.style.width = `${percent}%`;
+      progressText.textContent = `${habit.completedCount}/${habit.goal_per_week} (${percent}%)`;
     }
 
     // ---------------------
-    // 5️⃣ Logout
+    // Logout
     // ---------------------
     function logout() {
-      alert("Logged out (dummy function)");
-      renderDashboard(); // For testing, re-render dashboard
+      dummyHabits.forEach(h => h.completedCount = 0);
+      renderDashboard();
       showTab('dashboard');
     }
 
     // ---------------------
-    // 6️⃣ Initial render
+    // Weekly view
+    // ---------------------
+    function renderWeeklyView() {
+      const container = document.getElementById('weekly');
+      container.innerHTML = '<h2>Weekly Habit Tracker</h2>';
+
+      const table = document.createElement('table');
+
+      // Header row
+      const header = document.createElement('tr');
+      header.innerHTML = `<th>Habit</th>${weekdays.map(d => `<th>${d}</th>`).join('')}`;
+      table.appendChild(header);
+
+      dummyHabits.forEach(habit => {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>${habit.name}</td>` + weekdays.map((day, i) => {
+          // Add some fake data: randomly checked
+          const checked = Math.random() > 0.5 ? 'checked' : '';
+          return `<td><input type="checkbox" ${checked}></td>`;
+        }).join('');
+        table.appendChild(row);
+      });
+
+      container.appendChild(table);
+    }
+
+    // ---------------------
+    // Initial render
     // ---------------------
     renderDashboard();
     showTab('dashboard');
-
   </script>
+
 </body>
 </html>
