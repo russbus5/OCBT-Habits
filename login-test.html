@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Supabase Login Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.34.0/dist/supabase.min.js"></script>
+</head>
+<body>
+  <h1>Supabase Google Login Test</h1>
+  <button id="loginBtn">Sign in with Google</button>
+
+  <script>
+    // 1️⃣ Supabase setup
+    const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_secret_QCnsOinMqa6pdqOTJrCCAA_XMhKqGBl";
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // 2️⃣ Login button
+    document.getElementById('loginBtn').onclick = async function() {
+      console.log("Login button clicked");
+      const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
+      if (error) alert("Login error: " + error.message);
+      else console.log("OAuth started");
+    };
+  </script>
+</body>
+</html>
