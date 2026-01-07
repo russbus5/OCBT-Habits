@@ -1,183 +1,131 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8" />
 <title>Habit Tracker</title>
 
 <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
 <style>
-body { font-family: Arial; padding:20px; }
-nav button { margin-right:8px; }
+body { font-family: Arial; margin: 0; padding: 0; background:#f5f5f5; }
+header { padding:12px; background:#222; color:white; display:flex; justify-content:space-between; align-items:center; }
+button { cursor:pointer; }
+.hidden { display:none; }
+
+.tabs button { margin-right:10px; }
+
+.container { padding:20px; }
+
 .habit-row {
   display:grid;
-  grid-template-columns:120px 1fr 260px;
+  grid-template-columns: 80px 1fr 200px;
   gap:12px;
-  border-bottom:1px solid #ddd;
-  padding:10px 0;
+  align-items:center;
+  margin-bottom:10px;
+  background:white;
+  padding:10px;
 }
-.progress-bar { background:#eee; height:14px; }
-.progress-fill { background:#4caf50; height:100%; }
-.hidden { display:none; }
+
+.progress-bar {
+  height:10px;
+  background:#ddd;
+  border-radius:6px;
+  overflow:hidden;
+}
+
+.progress-bar > div {
+  height:100%;
+  background:#4caf50;
+}
+
 .modal {
-  position:fixed; inset:0; background:rgba(0,0,0,.4);
-  display:flex; align-items:center; justify-content:center;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.5);
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
+
 .modal-content {
-  background:white; padding:20px; width:300px;
+  background:white;
+  padding:20px;
+  width:300px;
 }
-.calendar {
-  display:grid; grid-template-columns:repeat(7,1fr); gap:4px;
-}
-.day { height:30px; background:#eee; }
-.day.filled { background:#4caf50; }
 </style>
 </head>
 
 <body>
 
-<h1>
-  Habit Tracker
-  <button style="float:right" onclick="openGoalModal()">＋</button>
-</h1>
+<header class="hidden" id="appHeader">
+  <div>Habit Tracker</div>
+  <div>
+    <button onclick="openGoalModal()">＋</button>
+    <button onclick="switchTab('dashboard')">Dashboard</button>
+    <button onclick="switchTab('activity')">Activity</button>
+    <button onclick="switchTab('settings')">Settings</button>
+  </div>
+</header>
 
-<div id="auth"></div>
+<div class="container">
 
-<nav>
-  <button onclick="show('dashboard')">Dashboard</button>
-  <button onclick="show('progress')">Progress</button>
-  <button onclick="show('activity')">Activity</button>
-  <button onclick="show('settings')">Settings</button>
-</nav>
+  <!-- AUTH -->
+  <div id="auth">
+    <button onclick="signIn()">Sign in with Google</button>
+  </div>
 
-<div id="dashboard"></div>
-<div id="progress" class="hidden"></div>
-<div id="activity" class="hidden"></div>
-<div id="settings" class="hidden"></div>
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="hidden"></div>
 
-<!-- Goal Modal -->
+  <!-- ACTIVITY -->
+  <div id="activity" class="hidden"></div>
+
+  <!-- SETTINGS -->
+  <div id="settings" class="hidden">
+    <button onclick="logout()">Log Out</button>
+  </div>
+</div>
+
+<!-- CREATE GOAL MODAL -->
 <div id="goalModal" class="modal hidden">
   <div class="modal-content">
     <h3>Create Goal</h3>
-    <input id="g-name" placeholder="Habit name"><br><br>
+
+    <input id="g-name" placeholder="Goal name"><br><br>
+
     <select id="g-category">
-      <option>Exercise</option><option>Read</option><option>Learn</option>
+      <option>Exercise</option>
+      <option>Reading</option>
+      <option>Learning</option>
     </select><br><br>
-    <input id="g-subtype" placeholder="Subtype (Run, Lift...)"><br><br>
+
+    <input id="g-subtype" placeholder="Subtype"><br><br>
+
     <select id="g-type">
+      <option value="daily">Daily</option>
       <option value="weekly">Weekly</option>
       <option value="monthly">Monthly</option>
     </select><br><br>
+
     <input id="g-target" type="number" placeholder="Target"><br><br>
+    <input id="g-units" placeholder="Units (times, miles, pages)"><br><br>
+
     <button onclick="createGoal()">Save</button>
     <button onclick="closeGoalModal()">Cancel</button>
   </div>
 </div>
 
 <script>
-const supabaseClient = supabase.createClient(
-  "https://drnkoftzavraufyjwjvx.supabase.co",
-  "sb_publishable_3ZM5ByDTEwo3GS8KCbNHtw_zi6ewd6b"
-);
+const SUPABASE_URL = "YOUR_SUPABASE_URL";
+const SUPABASE_ANON_KEY = "YOUR_PUBLIC_ANON_KEY";
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-let user;
+let user = null;
 
-function show(id){
-  ["dashboard","progress","activity","settings"].forEach(x=>{
-    document.getElementById(x).classList.add("hidden");
-  });
-  document.getElementById(id).classList.remove("hidden");
-}
+/* ---------------- AUTH ---------------- */
 
-function openGoalModal(){ document.getElementById("goalModal").classList.remove("hidden"); }
-function closeGoalModal(){ document.getElementById("goalModal").classList.add("hidden"); }
-
-async function createGoal(){
-  await supabaseClient.from("habits").insert({
-    user_id:user.id,
-    name: g-name.value,
-    category: g-category.value,
-    subtype: g-subtype.value,
-    goal_type: g-type.value,
-    target: Number(g-target.value)
-  });
-  closeGoalModal();
-  loadDashboard();
-}
-
-async function loadDashboard(){
-  const today = new Date().toISOString().slice(0,10);
-
-  const { data: habits } = await supabaseClient
-    .from("habits").select("*").eq("user_id", user.id);
-
-  const { data: logs } = await supabaseClient
-    .from("habit_logs").select("*").eq("user_id", user.id);
-
-  dashboard.innerHTML = "<h2>Daily</h2>";
-
-  habits.forEach(h=>{
-    const weekCount = logs.filter(l=>l.habit_id===h.id).length;
-    const pct = (weekCount/h.target)*100;
-    const doneToday = logs.some(l=>l.habit_id===h.id && l.date===today);
-
-    dashboard.innerHTML += `
-      <div class="habit-row">
-        <div>
-          <input type="checkbox" ${doneToday?"checked disabled":""}
-            onchange="complete('${h.id}')">
-          ${h.name}
-        </div>
-        <textarea id="ref-${h.id}" placeholder="Reflection"></textarea>
-        <div>
-          <div class="progress-bar">
-            <div class="progress-fill" style="width:${Math.min(pct,100)}%"></div>
-          </div>
-          ${weekCount}/${h.target} (${pct.toFixed(1)}%)
-          <br><button onclick="post('${h.id}')">Post</button>
-        </div>
-      </div>`;
-  });
-}
-
-async function complete(id){
-  await supabaseClient.from("habit_logs").insert({
-    user_id:user.id,
-    habit_id:id,
-    date:new Date().toISOString().slice(0,10)
-  });
-  loadDashboard();
-}
-
-async function post(id){
-  const text = document.getElementById("ref-"+id).value;
-  await supabaseClient.from("activity").insert({
-    user_id:user.id,
-    habit_id:id,
-    reflection:text
-  });
-  alert("Posted to Activity");
-}
-
-async function loadActivity(){
-  const { data } = await supabaseClient
-    .from("activity")
-    .select("reflection,created_at,habits(name)")
-    .order("created_at",{ascending:false});
-
-  activity.innerHTML = "<h2>Activity</h2>";
-  data.forEach(a=>{
-    activity.innerHTML += `
-      <div>
-        <strong>${a.habits.name}</strong><br>
-        ${a.reflection}<br>
-        <small>${a.created_at}</small>
-      </div>`;
-  });
-}
-
-async function loadSettings(){
-  settings.innerHTML = `<button onclick="logout()">Log out</button>`;
+async function signIn(){
+  await supabaseClient.auth.signInWithOAuth({ provider:'google' });
 }
 
 async function logout(){
@@ -185,17 +133,142 @@ async function logout(){
   location.reload();
 }
 
-supabaseClient.auth.onAuthStateChange(async (_,session)=>{
-  if(!session){
-    auth.innerHTML = `<button onclick="supabaseClient.auth.signInWithOAuth({provider:'google'})">Sign in</button>`;
-  } else {
-    user = session.user;
-    auth.innerHTML = `Signed in as ${user.email}`;
-    loadDashboard();
-    loadActivity();
-    loadSettings();
-  }
+supabaseClient.auth.onAuthStateChange(async (_, session)=>{
+  if (!session) return;
+  user = session.user;
+  document.getElementById("auth").classList.add("hidden");
+  document.getElementById("appHeader").classList.remove("hidden");
+  switchTab("dashboard");
 });
+
+/* ---------------- TABS ---------------- */
+
+function switchTab(tab){
+  ["dashboard","activity","settings"].forEach(t =>
+    document.getElementById(t).classList.add("hidden")
+  );
+  document.getElementById(tab).classList.remove("hidden");
+
+  if (tab === "dashboard") loadDashboard();
+  if (tab === "activity") loadActivity();
+}
+
+/* ---------------- GOALS ---------------- */
+
+function openGoalModal(){
+  document.getElementById("goalModal").classList.remove("hidden");
+}
+
+function closeGoalModal(){
+  document.getElementById("goalModal").classList.add("hidden");
+  ["g-name","g-subtype","g-target","g-units"].forEach(id => document.getElementById(id).value="");
+}
+
+async function createGoal(){
+  await supabaseClient.from("habits").insert({
+    user_id:user.id,
+    name:g("g-name"),
+    category:g("g-category"),
+    subtype:g("g-subtype"),
+    goal_type:g("g-type"),
+    target:Number(g("g-target")),
+    units:g("g-units")
+  });
+  closeGoalModal();
+  loadDashboard();
+}
+
+/* ---------------- DASHBOARD ---------------- */
+
+async function loadDashboard(){
+  const { data: habits } = await supabaseClient
+    .from("habits")
+    .select("*")
+    .eq("user_id", user.id);
+
+  const { data: logs } = await supabaseClient
+    .from("habit_logs")
+    .select("*")
+    .eq("user_id", user.id);
+
+  const dash = document.getElementById("dashboard");
+  dash.innerHTML = "";
+
+  habits.forEach(h => {
+    const total = logs
+      .filter(l => l.habit_id === h.id)
+      .reduce((a,b)=>a+b.amount,0);
+
+    const pct = (total / h.target) * 100;
+
+    dash.innerHTML += `
+      <div class="habit-row">
+        <div>
+          <input type="checkbox" onclick="completeHabit('${h.id}')" />
+        </div>
+        <div>
+          <strong>${h.name}</strong><br>
+          ${h.goal_type} goal
+        </div>
+        <div>
+          ${total}/${h.target} ${h.units}
+          <div class="progress-bar">
+            <div style="width:${Math.min(pct,200)}%"></div>
+          </div>
+          ${pct.toFixed(1)}%
+        </div>
+      </div>
+    `;
+  });
+}
+
+async function completeHabit(habitId){
+  const today = new Date().toISOString().slice(0,10);
+
+  const { data: existing } = await supabaseClient
+    .from("habit_logs")
+    .select("*")
+    .eq("habit_id", habitId)
+    .eq("log_date", today)
+    .maybeSingle();
+
+  if (existing) return alert("Already completed today");
+
+  await supabaseClient.from("habit_logs").insert({
+    habit_id:habitId,
+    user_id:user.id,
+    log_date:today,
+    amount:1
+  });
+
+  alert("Posted to Activity");
+  loadDashboard();
+}
+
+/* ---------------- ACTIVITY ---------------- */
+
+async function loadActivity(){
+  const { data } = await supabaseClient
+    .from("habit_logs")
+    .select("*, habits(name)")
+    .order("created_at",{ascending:false});
+
+  const a = document.getElementById("activity");
+  a.innerHTML = "";
+
+  data.forEach(l=>{
+    a.innerHTML += `
+      <div>
+        <strong>${l.habits.name}</strong> — ${l.amount}
+        <br><small>${new Date(l.created_at).toLocaleString()}</small>
+        <hr>
+      </div>
+    `;
+  });
+}
+
+/* ---------------- HELPERS ---------------- */
+function g(id){ return document.getElementById(id).value; }
 </script>
 
 </body>
