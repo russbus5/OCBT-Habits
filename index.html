@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Habit Tracker</title>
 
   <!-- Supabase UMD (Browser global) -->
@@ -24,19 +24,33 @@
 
   <script>
     // -------------------------------
-    // 1️⃣ Supabase setup
+    // 1️⃣ Supabase setup (pre-filled)
     // -------------------------------
-    const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co"; // replace with your URL
-    const SUPABASE_ANON_KEY = "sb_secret_QCnsOinMqa6pdqOTJrCCAA_XMhKqGBl"; // replace with your anon key
+    const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_secret_QCnsOinMqa6pdqOTJrCCAA_XMhKqGBl";
+
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const today = new Date().toISOString().split('T')[0];
 
     // -------------------------------
-    // 2️⃣ Auth functions
+    // 2️⃣ OAuth redirect handling
+    // -------------------------------
+    async function handleRedirect() {
+      try {
+        const { data, error } = await supabaseClient.auth.getSessionFromUrl({ storeSession: true });
+        if (error) console.error("Redirect capture error:", error.message);
+        else if (data.session) console.log("OAuth session captured:", data.session);
+      } catch (err) {
+        console.error("Redirect handling failed:", err);
+      }
+    }
+
+    // -------------------------------
+    // 3️⃣ Auth functions
     // -------------------------------
     async function signInWithGoogle() {
-      const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
+      const { error } = await supabaseClient.auth.signInWithOAuth({ provider: "google" });
       if (error) alert("Login error: " + error.message);
     }
 
@@ -46,16 +60,16 @@
     }
 
     // -------------------------------
-    // 3️⃣ Render login/dashboard
+    // 4️⃣ Render login/dashboard
     // -------------------------------
     async function renderApp() {
       const { data: { session } } = await supabaseClient.auth.getSession();
-      const authContainer = document.getElementById('auth-container');
-      const habitContainer = document.getElementById('habit-dashboard');
+      const authContainer = document.getElementById("auth-container");
+      const habitContainer = document.getElementById("habit-dashboard");
 
       if (!session) {
         authContainer.innerHTML = `<button id="loginBtn">Sign in with Google</button>`;
-        habitContainer.innerHTML = '';
+        habitContainer.innerHTML = "";
         document.getElementById("loginBtn").onclick = signInWithGoogle;
         return;
       }
@@ -70,7 +84,7 @@
     }
 
     // -------------------------------
-    // 4️⃣ Fetch & render habits
+    // 5️⃣ Fetch & render habits
     // -------------------------------
     async function fetchAndRenderHabits(userId) {
       const { data: habits, error } = await supabaseClient
@@ -80,11 +94,11 @@
 
       if (error) { console.error(error); return; }
 
-      const container = document.getElementById('habit-dashboard');
-      container.innerHTML = '';
+      const container = document.getElementById("habit-dashboard");
+      container.innerHTML = "";
 
       habits.forEach(habit => {
-        const div = document.createElement('div');
+        const div = document.createElement("div");
         div.className = "habit";
         div.innerHTML = `
           <label><input type="checkbox" id="habit-${habit.id}" /> ${habit.name} (${habit.category})</label>
@@ -96,22 +110,23 @@
         container.appendChild(div);
 
         const checkbox = div.querySelector(`#habit-${habit.id}`);
-        const textarea = div.querySelector('textarea');
-        const shareToggle = div.querySelector('.share-toggle');
+        const textarea = div.querySelector("textarea");
+        const shareToggle = div.querySelector(".share-toggle");
 
-        // Update shareToggle automatically when reflection is typed
         if (textarea) {
-          textarea.addEventListener('input', () => {
+          textarea.addEventListener("input", () => {
             shareToggle.checked = textarea.value.length > 0;
           });
         }
 
-        checkbox.addEventListener('change', () => saveHabitLog(userId, habit, checkbox.checked, textarea ? textarea.value : '', shareToggle.checked));
+        checkbox.addEventListener("change", () => 
+          saveHabitLog(userId, habit, checkbox.checked, textarea ? textarea.value : "", shareToggle.checked)
+        );
       });
     }
 
     // -------------------------------
-    // 5️⃣ Save habit log
+    // 6️⃣ Save habit log
     // -------------------------------
     async function saveHabitLog(userId, habit, completed, reflectionText = "", share = false) {
       const { data, error } = await supabaseClient
@@ -131,14 +146,14 @@
     }
 
     // -------------------------------
-    // 6️⃣ Auth state listener
+    // 7️⃣ Listen for auth changes
     // -------------------------------
     supabaseClient.auth.onAuthStateChange(() => renderApp());
 
     // -------------------------------
-    // 7️⃣ Initial load
+    // 8️⃣ Initial load
     // -------------------------------
-    renderApp();
+    handleRedirect().then(() => renderApp());
   </script>
 </body>
 </html>
