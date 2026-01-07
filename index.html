@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Habit Tracker</title>
 
-  <!-- Supabase CDN (must be first) -->
+  <!-- Supabase CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.34.0/dist/supabase.min.js"></script>
 
   <!-- React CDN -->
@@ -28,13 +28,13 @@
 
   <script>
     // ---------------------
-    // 1️⃣ Supabase setup
+    // 1️⃣ Supabase setup (make client global)
     // ---------------------
     const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co";
     const SUPABASE_ANON_KEY = "sb_secret_QCnsOinMqa6pdqOTJrCCAA_XMhKqGBl";
 
-    // This defines supabaseClient so it exists for everything below
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // Attach to window so it's globally accessible
+    window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const today = dayjs().format("YYYY-MM-DD");
 
@@ -42,7 +42,7 @@
     // 2️⃣ Handle OAuth redirect
     // ---------------------
     async function handleRedirect() {
-      const { data, error } = await supabaseClient.auth.getSessionFromUrl({ storeSession: true });
+      const { data, error } = await window.supabaseClient.auth.getSessionFromUrl({ storeSession: true });
       if (error) console.error("Error handling redirect:", error.message);
       else if (data.session) console.log("Redirect session captured:", data.session);
     }
@@ -51,12 +51,12 @@
     // 3️⃣ Auth functions
     // ---------------------
     async function signInWithGoogle() {
-      const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
+      const { error } = await window.supabaseClient.auth.signInWithOAuth({ provider: 'google' });
       if (error) alert(error.message);
     }
 
     async function signOut() {
-      await supabaseClient.auth.signOut();
+      await window.supabaseClient.auth.signOut();
       window.location.reload();
     }
 
@@ -64,7 +64,7 @@
     // 4️⃣ Render login / dashboard
     // ---------------------
     async function renderApp() {
-      const sessionRes = await supabaseClient.auth.getSession();
+      const sessionRes = await window.supabaseClient.auth.getSession();
       const session = sessionRes.data.session;
 
       const authContainer = document.getElementById('auth-container');
@@ -88,7 +88,7 @@
     // 5️⃣ Fetch habits
     // ---------------------
     async function fetchAndRenderHabits(userId) {
-      const { data: habits, error } = await supabaseClient
+      const { data: habits, error } = await window.supabaseClient
         .from("habits")
         .select("*")
         .eq("user_id", userId);
@@ -124,7 +124,7 @@
     // 6️⃣ Save habit log
     // ---------------------
     async function saveHabitLog(userId, habit, completed, div, reflectionText = "") {
-      const { data, error } = await supabaseClient
+      const { data, error } = await window.supabaseClient
         .from("habit_logs")
         .upsert([{
           user_id: userId,
@@ -148,7 +148,7 @@
     // ---------------------
     // 8️⃣ Auth change listener
     // ---------------------
-    supabaseClient.auth.onAuthStateChange(() => renderApp());
+    window.supabaseClient.auth.onAuthStateChange(() => renderApp());
 
   </script>
 </body>
