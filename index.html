@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Habit Tracker</title>
 
+  <!-- Supabase CDN (must be first) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.34.0/dist/supabase.min.js"></script>
+
   <!-- React CDN -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-
-  <!-- Supabase CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.34.0/dist/supabase.min.js"></script>
 
   <!-- Day.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.8/dayjs.min.js"></script>
@@ -33,7 +33,9 @@
     const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co";
     const SUPABASE_ANON_KEY = "sb_secret_QCnsOinMqa6pdqOTJrCCAA_XMhKqGBl";
 
+    // This defines supabaseClient so it exists for everything below
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
     const today = dayjs().format("YYYY-MM-DD");
 
     // ---------------------
@@ -79,7 +81,6 @@
         <button onclick="signOut()">Sign Out</button>
       `;
 
-      // Fetch and render habits
       fetchAndRenderHabits(session.user.id);
     }
 
@@ -109,7 +110,6 @@
         `;
         container.appendChild(div);
 
-        // Add event listeners for checkbox / textarea
         const checkbox = div.querySelector(`#habit-${habit.id}`);
         checkbox.addEventListener('change', () => saveHabitLog(userId, habit, checkbox.checked, div));
 
