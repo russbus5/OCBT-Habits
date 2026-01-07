@@ -1,12 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
     <title>Habit Tracker</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.34.0/dist/supabase.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.8/dayjs.min.js"></script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+
+    <script>
+      const { createClient } = supabase;
+      const supabaseUrl = "https://YOUR_PROJECT_REF.supabase.co";
+      const supabaseKey = "YOUR_ANON_PUBLIC_KEY";
+      const supabaseClient = createClient(supabaseUrl, supabaseKey);
+
+      const App = () => {
+        const root = ReactDOM.createRoot(document.getElementById("root"));
+        root.render(
+          React.createElement("div", { style: { padding: "20px" } }, 
+            "Habit Tracker MVP - login and habits will go here"
+          )
+        );
+      };
+
+      App();
+    </script>
   </body>
 </html>
