@@ -9,17 +9,22 @@
 <style>
 body { font-family: Arial, sans-serif; padding:20px; }
 nav button { margin-right:10px; }
-.habit-row { display:grid; grid-template-columns: 120px 1fr 280px; gap:15px; padding:10px 0; border-bottom:1px solid #ddd; }
-.progress-bar { height:14px; background:#eee; width:100%; position:relative; }
+.habit-row {
+  display:grid;
+  grid-template-columns:120px 1fr 280px;
+  gap:15px;
+  padding:10px 0;
+  border-bottom:1px solid #ddd;
+}
+.progress-bar { height:14px; background:#eee; width:100%; }
 .progress-fill { height:100%; background:#4caf50; }
-.goal-label { font-size:12px; margin-bottom:4px; }
-.week-grid, .month-grid { display:grid; gap:5px; }
-.week-grid { grid-template-columns: repeat(7, 1fr); }
-.month-grid { grid-template-columns: repeat(10, 1fr); }
+.goal-label { font-size:12px; }
+.week-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; }
+.month-grid { display:grid; grid-template-columns:repeat(10,1fr); gap:5px; }
 .box { height:20px; background:#ddd; }
 .box.filled { background:#4caf50; }
-.section { margin-top:20px; }
 .hidden { display:none; }
+.activity-entry { border-bottom:1px solid #ddd; padding:8px 0; }
 </style>
 </head>
 
@@ -32,107 +37,124 @@ nav button { margin-right:10px; }
   <button onclick="showTab('dashboard')">Dashboard</button>
   <button onclick="showTab('weekly')">Weekly Activity</button>
   <button onclick="showTab('monthly')">Monthly Activity</button>
+  <button onclick="showTab('activity')">Activity</button>
   <button onclick="showTab('settings')">Settings</button>
 </nav>
 
-<div id="dashboard" class="section"></div>
-<div id="weekly" class="section hidden"></div>
-<div id="monthly" class="section hidden"></div>
-<div id="settings" class="section hidden"></div>
+<div id="dashboard"></div>
+<div id="weekly" class="hidden"></div>
+<div id="monthly" class="hidden"></div>
+<div id="activity" class="hidden"></div>
+<div id="settings" class="hidden"></div>
 
 <script>
 /* ---------------- SUPABASE AUTH ONLY ---------------- */
-const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co";
-const SUPABASE_KEY = "sb_publishable_3ZM5ByDTEwo3GS8KCbNHtw_zi6ewd6b";
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-/* ---------------- FAKE DATA ---------------- */
-const habits = [
-  {
-    name: "Read",
-    goals: [
-      { type:"daily", target:1, completed:0 },
-      { type:"weekly", target:3, completed:2 },
-      { type:"monthly", target:12, completed:6 }
-    ]
-  },
-  {
-    name: "Run",
-    goals: [
-      { type:"daily", target:1, completed:1 },
-      { type:"weekly", target:2, completed:1 },
-      { type:"monthly", target:8, completed:3 }
-    ]
-  }
-];
+const supabaseClient = supabase.createClient(
+  "https://drnkoftzavraufyjwjvx.supabase.co",
+  "sb_publishable_3ZM5ByDTEwo3GS8KCbNHtw_zi6ewd6b"
+);
 
 /* ---------------- HELPERS ---------------- */
-function percent(c,t){ return ((c/t)*100).toFixed(1); }
-
+function percent(c,t){ return ((c/t)*100); }
+function visual(p){ return Math.min(p,100); }
 function showTab(tab){
-  ["dashboard","weekly","monthly","settings"].forEach(id=>{
+  ["dashboard","weekly","monthly","activity","settings"].forEach(id=>{
     document.getElementById(id).classList.add("hidden");
   });
   document.getElementById(tab).classList.remove("hidden");
 }
 
+/* ---------------- FAKE USERS ---------------- */
+const users = ["Russ Lee","Jamie Chen","Alex Morgan"];
+
+/* ---------------- FAKE ACTIVITY ---------------- */
+let activityLog = [
+  { name:"Jamie Chen", activity:"Completed Read", reflection:"Focused session", date:"2024-12-01" },
+  { name:"Alex Morgan", activity:"Completed Run", reflection:"Cold but solid", date:"2024-12-02" },
+  { name:"Russ Lee", activity:"Completed Read", reflection:"Learned a lot", date:"2024-12-03" }
+];
+
+/* ---------------- HABITS ---------------- */
+const habits = [
+  {
+    name:"Read",
+    goals:[
+      {type:"daily", target:3, completed:4},
+      {type:"weekly", target:5, completed:3},
+      {type:"monthly", target:12, completed:14}
+    ]
+  },
+  {
+    name:"Run",
+    goals:[
+      {type:"daily", target:1, completed:1},
+      {type:"weekly", target:2, completed:3},
+      {type:"monthly", target:8, completed:6}
+    ]
+  }
+];
+
 /* ---------------- DASHBOARD ---------------- */
 function renderDashboard(){
   const el = document.getElementById("dashboard");
-  el.innerHTML = "<h2>Daily Habits</h2>";
+  el.innerHTML = "<h2>Dashboard</h2>";
 
   habits.forEach(h=>{
-    const dailyGoals = h.goals.filter(g=>g.type==="daily");
-    dailyGoals.forEach(g=>{
+    h.goals.filter(g=>g.type==="daily").forEach(g=>{
+      const p = percent(g.completed,g.target);
       el.innerHTML += `
       <div class="habit-row">
         <div>
-          <input type="checkbox" onchange="toggleDaily('${h.name}')">
+          <input type="checkbox" onchange="toggle('${h.name}')">
           <div>${h.name}</div>
-        </div>
-        <div>
-          <textarea placeholder="Reflection..."></textarea>
-        </div>
-        <div>
           <div class="goal-label">Daily</div>
+        </div>
+        <div>
+          <textarea id="ref-${h.name}" placeholder="Reflection..."></textarea><br/>
+          <button onclick="post('${h.name}')">Post</button>
+        </div>
+        <div>
           <div class="progress-bar">
-            <div class="progress-fill" style="width:${percent(g.completed,g.target)}%"></div>
+            <div class="progress-fill" style="width:${visual(p)}%"></div>
           </div>
-          <div>${g.completed}/${g.target} (${percent(g.completed,g.target)}%)</div>
+          <div>${p.toFixed(1)}%</div>
         </div>
       </div>`;
     });
   });
 }
 
-function toggleDaily(name){
-  const habit = habits.find(h=>h.name===name);
-  const goal = habit.goals.find(g=>g.type==="daily");
-  goal.completed = goal.completed ? 0 : 1;
+function toggle(name){
+  const h = habits.find(x=>x.name===name);
+  h.goals.find(g=>g.type==="daily").completed++;
   renderDashboard();
+}
+
+/* ---------------- POST TO ACTIVITY ---------------- */
+function post(habit){
+  const text = document.getElementById(`ref-${habit}`).value;
+  activityLog.unshift({
+    name:"Russ Lee",
+    activity:`Completed ${habit}`,
+    reflection:text,
+    date:new Date().toISOString().split("T")[0]
+  });
+  renderActivity();
 }
 
 /* ---------------- WEEKLY ---------------- */
 function renderWeekly(){
   const el = document.getElementById("weekly");
   el.innerHTML = "<h2>Weekly Activity</h2>";
-
   habits.forEach(h=>{
     h.goals.filter(g=>g.type==="weekly").forEach(g=>{
+      const p = percent(g.completed,g.target);
       el.innerHTML += `
       <h4>${h.name}</h4>
-      <div style="display:grid;grid-template-columns:1fr 200px;gap:15px;">
-        <div class="week-grid">
-          ${Array.from({length:7}).map((_,i)=>
-            `<div class="box ${i<g.completed?'filled':''}"></div>`).join("")}
-        </div>
-        <div>
-          <div class="progress-bar">
-            <div class="progress-fill" style="width:${percent(g.completed,g.target)}%"></div>
-          </div>
-          <div>${g.completed}/${g.target} (${percent(g.completed,g.target)}%)</div>
-        </div>
-      </div>`;
+      <div class="week-grid">
+        ${Array.from({length:7}).map((_,i)=>`<div class="box ${i<g.completed?'filled':''}"></div>`).join("")}
+      </div>
+      <div>${p.toFixed(1)}%</div>`;
     });
   });
 }
@@ -141,24 +163,30 @@ function renderWeekly(){
 function renderMonthly(){
   const el = document.getElementById("monthly");
   el.innerHTML = "<h2>Monthly Activity</h2>";
-
   habits.forEach(h=>{
     h.goals.filter(g=>g.type==="monthly").forEach(g=>{
+      const p = percent(g.completed,g.target);
       el.innerHTML += `
       <h4>${h.name}</h4>
-      <div style="display:grid;grid-template-columns:1fr 200px;gap:15px;">
-        <div class="month-grid">
-          ${Array.from({length:30}).map((_,i)=>
-            `<div class="box ${i<g.completed?'filled':''}"></div>`).join("")}
-        </div>
-        <div>
-          <div class="progress-bar">
-            <div class="progress-fill" style="width:${percent(g.completed,g.target)}%"></div>
-          </div>
-          <div>${g.completed}/${g.target} (${percent(g.completed,g.target)}%)</div>
-        </div>
-      </div>`;
+      <div class="month-grid">
+        ${Array.from({length:30}).map((_,i)=>`<div class="box ${i<g.completed?'filled':''}"></div>`).join("")}
+      </div>
+      <div>${p.toFixed(1)}%</div>`;
     });
+  });
+}
+
+/* ---------------- ACTIVITY ---------------- */
+function renderActivity(){
+  const el = document.getElementById("activity");
+  el.innerHTML = "<h2>Activity Log</h2>";
+  activityLog.forEach(a=>{
+    el.innerHTML += `
+      <div class="activity-entry">
+        <strong>${a.name}</strong> — ${a.activity}<br/>
+        <em>${a.reflection}</em><br/>
+        <small>${a.date}</small>
+      </div>`;
   });
 }
 
@@ -174,7 +202,6 @@ function renderSettings(){
 async function login(){
   await supabaseClient.auth.signInWithOAuth({provider:"google"});
 }
-
 async function logout(){
   await supabaseClient.auth.signOut();
   location.reload();
@@ -189,6 +216,7 @@ supabaseClient.auth.onAuthStateChange((_e,session)=>{
     renderDashboard();
     renderWeekly();
     renderMonthly();
+    renderActivity();
     renderSettings();
   }
 });
