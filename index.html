@@ -1,39 +1,153 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Habit Tracker</title>
+
+    <!-- React CDN -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+    <!-- Supabase CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.34.0/dist/supabase.min.js"></script>
+
+    <!-- Day.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.8/dayjs.min.js"></script>
+
+    <style>
+      body { font-family: sans-serif; padding: 20px; }
+      textarea { width: 300px; height: 50px; }
+      hr { margin: 10px 0; }
+    </style>
   </head>
+
   <body>
-    <div id="root"></div>
+    <h1>Habit Tracker</h1>
 
+    <!-- Auth container -->
+    <div id="auth-container"></div>
+
+    <!-- Habit dashboard -->
+    <div id="habit-dashboard"></div>
+
+    <!-- Main JS -->
     <script>
-      const { createClient } = supabase;
-      const supabaseUrl = "https://YOUR_PROJECT_REF.supabase.co";
-      const supabaseKey = "YOUR_ANON_PUBLIC_KEY";
-      const supabaseClient = createClient(supabaseUrl, supabaseKey);
+      // ---------------------
+      // 1️⃣ Supabase setup
+      // ---------------------
+      const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co"; // <-- replace with your Supabase project URL
+      const SUPABASE_ANON_KEY = "sb_secret_QCnsOinMqa6pdqOTJrCCAA_XMhKqGBl";            // <-- replace with your Supabase anon key
 
-      const App = () => {
-        const root = ReactDOM.createRoot(document.getElementById("root"));
-        root.render(
-          React.createElement("div", { style: { padding: "20px" } }, 
-            "Habit Tracker MVP - login and habits will go here"
-          )
-        );
-      };
+      const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const today = dayjs().format("YYYY-MM-DD");
 
-      App();
+      // ---------------------
+      // 2️⃣ Auth functions
+      // ---------------------
+      async function signInWithGoogle() {
+        const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
+        if (error) alert(error.message);
+      }
+
+      async function signOut() {
+        await supabaseClient.auth.signOut();
+        window.location.reload();
+      }
+
+      // ---------------------
+      // 3️⃣ Render login / dashboard
+      // ---------------------
+      async function renderApp() {
+        const sessionRes = await supabaseClient.auth.getSession();
+        const session = sessionRes.data.session;
+
+        const authContainer = document.getElementById('auth-container');
+        const habitContainer = document.getElementById('habit-dashboard');
+
+        if (!session) {
+          authContainer.innerHTML = `<button onclick="signInWithGoogle()">Sign in with Google</button>`;
+          habitContainer.innerHTML = '';
+          return;
+        }
+
+        authContainer.innerHTML = `
+          <p>Welcome, ${session.user.email}</p>
+          <button onclick="signOut()">Sign Out</button>
+        `;
+
+        // Fetch and render habits
+        fetchAndRenderHabits(session.user.id);
+      }
+
+      // ---------------------
+      // 4️⃣ Fetch habits
+      // ---------------------
+      async function fetchAndRenderHabits(userId) {
+        const { data: habits, error } = await supabaseClient
+          .from("habits")
+          .select("*")
+          .eq("user_id", userId);
+
+        if (error) { console.error(error); return; }
+
+        const container = document.getElementById('habit-dashboard');
+        container.innerHTML = '';
+
+        habits.forEach(habit => {
+          const div = document.createElement('div');
+          div.innerHTML = `
+            <h3>${habit.name} (${habit.category})</h3>
+            <input type="checkbox" id="habit-${habit.id}" />
+            ${habit.has_text_input ? '<br/><textarea placeholder="Add reflection..."></textarea>' : ''}
+            <br/>
+            Share with group? <input type="checkbox" />
+            <hr/>
+          `;
+          container.appendChild(div);
+
+          // Add event listeners for checkbox / textarea
+          const checkbox = div.querySelector(`#habit-${habit.id}`);
+          checkbox.addEventListener('change', () => saveHabitLog(userId, habit, checkbox.checked, div));
+
+          const textarea = div.querySelector('textarea');
+          if (textarea) {
+            textarea.addEventListener('input', () => saveHabitLog(userId, habit, checkbox.checked, div, textarea.value));
+          }
+        });
+      }
+
+      // ---------------------
+      // 5️⃣ Save habit log
+      // ---------------------
+      async function saveHabitLog(userId, habit, completed, div, reflectionText = "") {
+        const { data, error } = await supabaseClient
+          .from("habit_logs")
+          .upsert([{
+            user_id: userId,
+            habit_id: habit.id,
+            date: today,
+            reflection_text: reflectionText,
+            share_toggle: reflectionText.length > 0 ? true : false,
+            completed: completed
+          }])
+          .select();
+
+        if (error) console.error(error);
+        else console.log("Saved habit log:", data);
+      }
+
+      // ---------------------
+      // 6️⃣ Initial render
+      // ---------------------
+      renderApp();
+
+      // ---------------------
+      // 7️⃣ Listen for auth changes
+      // ---------------------
+      supabaseClient.auth.onAuthStateChange(() => {
+        renderApp();
+      });
     </script>
-  // Replace with your Supabase project info
-  const SUPABASE_URL = "https://YOUR_PROJECT_REF.supabase.co";
-  const SUPABASE_ANON_KEY = "YOUR_ANON_PUBLIC_KEY";
-  const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    
-</script>
-
   </body>
 </html>
