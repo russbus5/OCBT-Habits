@@ -1,167 +1,193 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Habit Tracker</title>
+
+  <!-- Supabase -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <!-- Day.js -->
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.8/dayjs.min.js"></script>
 
   <style>
     body { font-family: sans-serif; padding: 20px; }
-    .tab { display: none; margin-top: 20px; }
-    .tab.active { display: block; }
-    button { margin: 5px; padding: 5px 10px; }
-    .progress-bar { background: #eee; width: 100px; height: 20px; position: relative; display:inline-block; vertical-align: middle; margin-left: 5px; }
+    h1 { text-align: center; }
+    nav button { margin-right: 10px; }
+    .habit-container { margin-bottom: 20px; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
+    .progress-container { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+    .progress-bar { background: #eee; width: 200px; height: 20px; position: relative; }
     .progress-bar-fill { background: green; height: 100%; }
-    textarea { width: 300px; height: 50px; }
-    hr { margin: 15px 0; }
-    table { border-collapse: collapse; margin-top: 10px; width: 100%; }
-    td, th { border: 1px solid #aaa; padding: 5px; text-align: center; }
-    td.progress-cell { width: 120px; }
+    .progress-text { min-width: 60px; text-align: right; }
+    textarea { width: 300px; height: 40px; }
+    .activity-log { margin-top: 20px; border-top: 2px solid #444; padding-top: 10px; }
+    .activity-entry { margin-bottom: 10px; padding: 5px; border: 1px solid #ddd; }
   </style>
 </head>
 <body>
-
   <h1>Habit Tracker</h1>
-
-  <!-- Tab buttons -->
-  <div>
+  <div id="auth-container"></div>
+  <nav>
     <button onclick="showTab('dashboard')">Dashboard</button>
-    <button onclick="showTab('monthly')">Monthly View</button>
-    <button onclick="showTab('settings')">Settings</button>
-  </div>
-
-  <!-- Tabs -->
-  <div id="dashboard" class="tab"></div>
-  <div id="monthly" class="tab"></div>
-  <div id="settings" class="tab">
-    <button onclick="logout()">Log Out</button>
-  </div>
+    <button onclick="showTab('activity')">Activity</button>
+  </nav>
+  <div id="dashboard-tab"></div>
+  <div id="activity-tab" style="display:none;"></div>
 
   <script>
-    // ---------------------
-    // Tabs
-    // ---------------------
-    function showTab(tabId) {
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.getElementById(tabId).classList.add('active');
+    // -------------------------
+    // Supabase setup
+    // -------------------------
+    const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_3ZM5ByDTEwo3GS8KCbNHtw_zi6ewd6b";
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-      if (tabId === 'monthly') renderMonthlyView();
-    }
+    const today = dayjs().format("YYYY-MM-DD");
 
-    // ---------------------
-    // Dummy habits
-    // ---------------------
-    const dummyHabits = [
-      { id: 1, name: 'Read', category: 'Personal', has_text_input: true, goal_per_week: 3, completedCount: 0 },
-      { id: 2, name: 'Exercise', category: 'Fitness', has_text_input: true, goal_per_week: 4, completedCount: 0 },
-      { id: 3, name: 'Meditate', category: 'Wellness', has_text_input: true, goal_per_week: 7, completedCount: 0 }
+    // -------------------------
+    // Dummy Data
+    // -------------------------
+    let dummyHabits = [
+      { id:1, name:'Read', category:'Personal', subtype:'Book', has_text_input:true, goals:[
+          { goal_type:'daily', goal_value:1, completed:1 },
+          { goal_type:'weekly', goal_value:3, completed:2 },
+        ]
+      },
+      { id:2, name:'Meditate', category:'Wellness', subtype:'Mindfulness', has_text_input:true, goals:[
+          { goal_type:'daily', goal_value:1, completed:1 },
+          { goal_type:'monthly', goal_value:20, completed:12 },
+        ]
+      },
+      { id:3, name:'Run', category:'Fitness', subtype:'Cardio', has_text_input:true, goals:[
+          { goal_type:'daily', goal_value:1, completed:0 },
+          { goal_type:'weekly', goal_value:3, completed:1 },
+        ]
+      },
+      { id:4, name:'Lift', category:'Fitness', subtype:'Strength', has_text_input:true, goals:[
+          { goal_type:'weekly', goal_value:2, completed:1 },
+          { goal_type:'monthly', goal_value:8, completed:4 },
+        ]
+      },
+      { id:5, name:'Yoga', category:'Fitness', subtype:'Stretch', has_text_input:true, goals:[
+          { goal_type:'daily', goal_value:1, completed:1 },
+          { goal_type:'monthly', goal_value:12, completed:5 },
+        ]
+      },
+      { id:6, name:'Learn JS', category:'Skill', subtype:'Programming', has_text_input:true, goals:[
+          { goal_type:'daily', goal_value:1, completed:0 },
+          { goal_type:'monthly', goal_value:15, completed:5 },
+        ]
+      }
     ];
 
-    const monthDays = Array.from({length:30}, (_, i) => i + 1);
-
-    // ---------------------
-    // Render Dashboard
-    // ---------------------
-    function renderDashboard() {
-      const container = document.getElementById('dashboard');
-      container.innerHTML = '<h2>My Habits</h2>';
-
-      dummyHabits.forEach(habit => {
-        const div = document.createElement('div');
-
-        div.innerHTML = `
-          <h4>${habit.name} (${habit.category})</h4>
-          <div class="progress-bar">
-            <div class="progress-bar-fill" style="width:0%"></div>
-            <span style="position:absolute;left:50%;top:0;color:white;font-weight:bold;">0/${habit.goal_per_week} (0%)</span>
-          </div>
-          <input type="checkbox" id="habit-${habit.id}" />
-          ${habit.has_text_input ? '<br/><textarea placeholder="Add reflection..."></textarea>' : ''}
-          <br/>Share with group? <input type="checkbox"/>
-          <hr/>
-        `;
-        container.appendChild(div);
-
-        const checkbox = div.querySelector(`#habit-${habit.id}`);
-        checkbox.addEventListener('change', () => {
-          habit.completedCount = checkbox.checked ? 1 : 0;
-          updateProgress(habit.id);
-        });
-      });
+    // -------------------------
+    // Auth (Google only)
+    // -------------------------
+    async function signInWithGoogle() {
+      const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
+      if(error) alert(error.message);
     }
 
-    // ---------------------
-    // Update progress
-    // ---------------------
-    function updateProgress(habitId) {
-      const habit = dummyHabits.find(h => h.id === habitId);
-      const div = document.getElementById('dashboard').querySelector(`#habit-${habitId}`).parentElement;
-      const progressFill = div.querySelector('.progress-bar-fill');
-      const progressText = div.querySelector('.progress-bar span');
-
-      const fraction = habit.completedCount / habit.goal_per_week;
-      const percent = Math.min(fraction * 100, 100).toFixed(1);
-
-      progressFill.style.width = `${percent}%`;
-      progressText.textContent = `${habit.completedCount}/${habit.goal_per_week} (${percent}%)`;
+    async function signOut() {
+      await supabaseClient.auth.signOut();
+      window.location.reload();
     }
 
-    // ---------------------
-    // Logout
-    // ---------------------
-    function logout() {
-      dummyHabits.forEach(h => h.completedCount = 0);
+    async function renderApp() {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      const authContainer = document.getElementById('auth-container');
+      if(!session){
+        authContainer.innerHTML = `<button onclick="signInWithGoogle()">Sign in with Google</button>`;
+        document.getElementById('dashboard-tab').innerHTML = '';
+        document.getElementById('activity-tab').innerHTML = '';
+        return;
+      }
+      authContainer.innerHTML = `
+        <p>Welcome, ${session.user.email} <button onclick="signOut()">Sign Out</button></p>
+      `;
       renderDashboard();
-      showTab('dashboard');
+      renderActivity();
     }
 
-    // ---------------------
-    // Monthly view
-    // ---------------------
-    function renderMonthlyView() {
-      const container = document.getElementById('monthly');
-      container.innerHTML = '<h2>Monthly Habit Tracker</h2>';
+    // -------------------------
+    // Tab switching
+    // -------------------------
+    function showTab(tab){
+      document.getElementById('dashboard-tab').style.display = (tab==='dashboard') ? 'block' : 'none';
+      document.getElementById('activity-tab').style.display = (tab==='activity') ? 'block' : 'none';
+    }
 
-      const table = document.createElement('table');
-
-      // Header row
-      const header = document.createElement('tr');
-      header.innerHTML = `<th>Habit</th>` + monthDays.map(d => `<th>${d}</th>`).join('') + `<th>Progress</th>`;
-      table.appendChild(header);
-
+    // -------------------------
+    // Dashboard
+    // -------------------------
+    function renderDashboard(){
+      const container = document.getElementById('dashboard-tab');
+      container.innerHTML = '';
       dummyHabits.forEach(habit => {
-        const row = document.createElement('tr');
-
-        // Random fake data: 0 or 1 completed
-        const completions = monthDays.map(() => Math.random() > 0.5 ? 1 : 0);
-
-        habit.completedCount = completions.reduce((a,b)=>a+b,0);
-
-        const cells = completions.map(c => `<td><input type="checkbox" ${c ? 'checked' : ''} disabled></td>`).join('');
-
-        // Progress bar and numeric display
-        const fraction = habit.completedCount / 30;
-        const percent = (fraction*100).toFixed(1);
-        const progressCell = `<td class="progress-cell">
-                                <div class="progress-bar">
-                                  <div class="progress-bar-fill" style="width:${percent}%"></div>
-                                  <span style="position:absolute;left:50%;top:0;color:white;font-weight:bold;">${habit.completedCount}/30 (${percent}%)</span>
-                                </div>
-                              </td>`;
-
-        row.innerHTML = `<td>${habit.name}</td>${cells}${progressCell}`;
-        table.appendChild(row);
+        const habitDiv = document.createElement('div');
+        habitDiv.className = 'habit-container';
+        habitDiv.innerHTML = `<h3>${habit.name} (${habit.category} / ${habit.subtype})</h3>`;
+        habit.goals.forEach(goal => {
+          const pct = Math.min((goal.completed/goal.goal_value)*100, 100).toFixed(1);
+          const progressHTML = `
+            <div class="progress-container">
+              <div class="progress-bar">
+                <div class="progress-bar-fill" style="width:${pct}%"></div>
+              </div>
+              <div class="progress-text">${goal.completed}/${goal.goal_value} (${pct}%)</div>
+            </div>
+          `;
+          habitDiv.innerHTML += progressHTML;
+        });
+        // Reflection + Post button
+        habitDiv.innerHTML += `
+          ${habit.has_text_input ? '<textarea placeholder="Add reflection..."></textarea><br/>' : ''}
+          <button onclick="postReflection('${habit.name}')">Post</button>
+        `;
+        container.appendChild(habitDiv);
       });
-
-      container.appendChild(table);
     }
 
-    // ---------------------
-    // Initial render
-    // ---------------------
-    renderDashboard();
-    showTab('dashboard');
-  </script>
+    // -------------------------
+    // Activity Tab
+    // -------------------------
+    let dummyActivity = [];
+    function renderActivity(){
+      const container = document.getElementById('activity-tab');
+      container.innerHTML = '<h3>Activity Feed</h3>';
+      if(dummyActivity.length===0){
+        container.innerHTML += '<p>No activity yet.</p>';
+      } else {
+        dummyActivity.forEach(entry => {
+          const div = document.createElement('div');
+          div.className = 'activity-entry';
+          div.innerHTML = `<strong>${entry.habit}</strong>: ${entry.reflection}`;
+          container.appendChild(div);
+        });
+      }
+    }
 
+    function postReflection(habitName){
+      const habitDivs = document.querySelectorAll('.habit-container');
+      habitDivs.forEach(div=>{
+        if(div.querySelector('h3').textContent.startsWith(habitName)){
+          const textarea = div.querySelector('textarea');
+          if(textarea && textarea.value.trim()!==''){
+            dummyActivity.push({ habit: habitName, reflection: textarea.value.trim() });
+            textarea.value = '';
+            renderActivity();
+            showTab('activity');
+          }
+        }
+      });
+    }
+
+    // -------------------------
+    // Init
+    // -------------------------
+    supabaseClient.auth.onAuthStateChange(()=>renderApp());
+    renderApp();
+
+  </script>
 </body>
 </html>
