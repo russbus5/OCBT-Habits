@@ -5,11 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Habit Tracker</title>
 
-  <!-- Supabase JS -->
-  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <!-- Day.js for dates -->
-  <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.8/dayjs.min.js"></script>
-
   <style>
     body { font-family: sans-serif; padding: 20px; }
     .tab { display: none; margin-top: 20px; }
@@ -18,7 +13,6 @@
     .progress-bar { background: #eee; width: 300px; height: 20px; position: relative; margin-bottom: 10px; }
     .progress-bar-fill { background: green; height: 100%; }
     textarea { width: 300px; height: 50px; }
-    input[type="text"], input[type="number"] { margin: 3px 0; padding: 3px; }
     hr { margin: 15px 0; }
   </style>
 </head>
@@ -26,34 +20,21 @@
 
   <h1>Habit Tracker</h1>
 
-  <div id="auth-container"></div>
-
   <!-- Tab buttons -->
   <div>
     <button onclick="showTab('dashboard')">Dashboard</button>
     <button onclick="showTab('settings')">Settings</button>
   </div>
 
-  <!-- Tab content -->
+  <!-- Tabs -->
   <div id="dashboard" class="tab"></div>
   <div id="settings" class="tab">
     <button onclick="logout()">Log Out</button>
-    <div id="profile-form-settings"></div>
   </div>
 
   <script>
     // ---------------------
-    // 1️⃣ Supabase setup
-    // ---------------------
-    const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co"; // Replace with your URL
-    const SUPABASE_ANON_KEY = "sb_publishable_3ZM5ByDTEwo3GS8KCbNHtw_zi6ewd6b"; // Replace with your public anon key
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    let session = null;
-    const today = dayjs().format("YYYY-MM-DD");
-
-    // ---------------------
-    // 2️⃣ Show tab
+    // 1️⃣ Tabs
     // ---------------------
     function showTab(tabId) {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -61,81 +42,7 @@
     }
 
     // ---------------------
-    // 3️⃣ Login / Logout
-    // ---------------------
-    async function login() {
-      await supabaseClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href } });
-    }
-
-    async function logout() {
-      await supabaseClient.auth.signOut();
-      window.location.reload();
-    }
-
-    // ---------------------
-    // 4️⃣ Render App
-    // ---------------------
-    async function renderApp() {
-      const { data: sessionData } = await supabaseClient.auth.getSession();
-      session = sessionData.session;
-
-      const authContainer = document.getElementById('auth-container');
-
-      if (!session) {
-        authContainer.innerHTML = `<button onclick="login()">Sign in with Google</button>`;
-        document.getElementById('dashboard').innerHTML = '';
-        document.getElementById('settings').innerHTML = '';
-        return;
-      }
-
-      authContainer.innerHTML = `<p>Signed in as ${session.user.email}</p>`;
-
-      // Check user profile
-      const { data: profile } = await supabaseClient
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-
-      if (!profile || !profile.first_name) {
-        showNameForm('dashboard');
-      } else {
-        fetchAndRenderHabits();
-      }
-
-      showTab('dashboard');
-    }
-
-    // ---------------------
-    // 5️⃣ Name Form
-    // ---------------------
-    function showNameForm(containerId) {
-      const container = document.getElementById(containerId);
-      container.innerHTML = `
-        <h3>Welcome! Please enter your name:</h3>
-        <input type="text" id="first-name" placeholder="First Name"/>
-        <input type="text" id="last-name" placeholder="Last Name"/>
-        <button onclick="saveName()">Save Name</button>
-      `;
-    }
-
-    async function saveName() {
-      const firstName = document.getElementById('first-name').value.trim();
-      const lastName = document.getElementById('last-name').value.trim();
-
-      if (!firstName) { alert("Please enter your first name"); return; }
-
-      await supabaseClient.from('profiles').upsert([{
-        id: session.user.id,
-        first_name: firstName,
-        last_name: lastName
-      }]);
-
-      fetchAndRenderHabits();
-    }
-
-    // ---------------------
-    // 6️⃣ Dummy habits data
+    // 2️⃣ Dummy habits
     // ---------------------
     const dummyHabits = [
       { id: 1, name: 'Read', category: 'Personal', has_text_input: true, goal_per_week: 3 },
@@ -144,14 +51,12 @@
     ];
 
     // ---------------------
-    // 7️⃣ Fetch & render habits
+    // 3️⃣ Render dashboard
     // ---------------------
-    async function fetchAndRenderHabits() {
+    function renderDashboard() {
       const container = document.getElementById('dashboard');
       container.innerHTML = '<h2>My Habits</h2>';
-      container.innerHTML += `<button onclick="showAddHabitForm()">Add New Habit</button><hr/>`;
 
-      // Render each habit
       dummyHabits.forEach(habit => {
         const div = document.createElement('div');
 
@@ -169,57 +74,46 @@
         container.appendChild(div);
 
         const checkbox = div.querySelector(`#habit-${habit.id}`);
-        checkbox.addEventListener('change', () => alert(`Checked ${habit.name}! Here you can save to Supabase`));
+        checkbox.addEventListener('change', () => {
+          alert(`Checked habit: ${habit.name}`);
+          updateProgress(habit.id, checkbox.checked);
+        });
       });
     }
 
     // ---------------------
-    // 8️⃣ Add habit form
+    // 4️⃣ Update progress bar
     // ---------------------
-    function showAddHabitForm() {
-      const container = document.getElementById('dashboard');
-      const formDiv = document.createElement('div');
-      formDiv.innerHTML = `
-        <h4>Add New Habit</h4>
-        <input type="text" id="new-habit-name" placeholder="Habit Name"/>
-        <input type="text" id="new-habit-category" placeholder="Category"/>
-        <input type="number" id="new-habit-goal" placeholder="Goal per week" min="1"/>
-        <label><input type="checkbox" id="new-habit-text"> Requires Reflection</label>
-        <button onclick="addHabit()">Save Habit</button>
-        <hr/>
-      `;
-      container.appendChild(formDiv);
-    }
+    function updateProgress(habitId, completed) {
+      const habit = dummyHabits.find(h => h.id === habitId);
+      const div = document.getElementById('dashboard').querySelector(`#habit-${habitId}`).parentElement;
+      const progressFill = div.querySelector('.progress-bar-fill');
+      const progressText = div.querySelector('.progress-bar span');
 
-    function addHabit() {
-      const name = document.getElementById('new-habit-name').value.trim();
-      const category = document.getElementById('new-habit-category').value.trim();
-      const goal = parseInt(document.getElementById('new-habit-goal').value);
-      const hasText = document.getElementById('new-habit-text').checked;
-
-      if (!name || !category || !goal) { alert("Fill out all fields"); return; }
-
-      const newHabit = {
-        id: dummyHabits.length + 1,
-        name,
-        category,
-        goal_per_week: goal,
-        has_text_input: hasText
-      };
-
-      dummyHabits.push(newHabit);
-      fetchAndRenderHabits();
+      // For testing: just toggle 50% if checked, 0% if unchecked
+      if (completed) {
+        progressFill.style.width = '50%';
+        progressText.textContent = `1/${habit.goal_per_week} (50%)`;
+      } else {
+        progressFill.style.width = '0%';
+        progressText.textContent = `0/${habit.goal_per_week} (0%)`;
+      }
     }
 
     // ---------------------
-    // 9️⃣ Initial load
+    // 5️⃣ Logout
     // ---------------------
-    renderApp();
+    function logout() {
+      alert("Logged out (dummy function)");
+      renderDashboard(); // For testing, re-render dashboard
+      showTab('dashboard');
+    }
 
     // ---------------------
-    // 10️⃣ Listen for auth changes
+    // 6️⃣ Initial render
     // ---------------------
-    supabaseClient.auth.onAuthStateChange(() => renderApp());
+    renderDashboard();
+    showTab('dashboard');
 
   </script>
 </body>
