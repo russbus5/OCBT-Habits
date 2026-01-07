@@ -14,11 +14,13 @@
     body { font-family: sans-serif; padding: 20px; }
     h1 { text-align: center; }
     nav button { margin-right: 10px; }
-    .habit-container { margin-bottom: 20px; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
-    .progress-container { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
-    .progress-bar { background: #eee; width: 200px; height: 20px; position: relative; }
+    .habit-container { margin-bottom: 20px; border-bottom: 1px solid #ccc; padding-bottom: 10px; display:flex; justify-content: space-between; }
+    .habit-left { flex: 1; }
+    .habit-right { flex: 1; padding-left: 20px; }
+    .progress-container { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
+    .progress-bar { background: #eee; width: 120px; height: 15px; position: relative; }
     .progress-bar-fill { background: green; height: 100%; }
-    .progress-text { min-width: 60px; text-align: right; }
+    .progress-text { min-width: 50px; text-align: right; font-size: 12px; }
     textarea { width: 300px; height: 40px; }
     .activity-log { margin-top: 20px; border-top: 2px solid #444; padding-top: 10px; }
     .activity-entry { margin-bottom: 10px; padding: 5px; border: 1px solid #ddd; }
@@ -35,9 +37,6 @@
   <div id="activity-tab" style="display:none;"></div>
 
   <script>
-    // -------------------------
-    // Supabase setup
-    // -------------------------
     const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_3ZM5ByDTEwo3GS8KCbNHtw_zi6ewd6b";
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -45,43 +44,32 @@
     const today = dayjs().format("YYYY-MM-DD");
 
     // -------------------------
-    // Dummy Data
+    // Dummy habits
     // -------------------------
     let dummyHabits = [
       { id:1, name:'Read', category:'Personal', subtype:'Book', has_text_input:true, goals:[
           { goal_type:'daily', goal_value:1, completed:1 },
           { goal_type:'weekly', goal_value:3, completed:2 },
-        ]
-      },
-      { id:2, name:'Meditate', category:'Wellness', subtype:'Mindfulness', has_text_input:true, goals:[
-          { goal_type:'daily', goal_value:1, completed:1 },
-          { goal_type:'monthly', goal_value:20, completed:12 },
-        ]
-      },
-      { id:3, name:'Run', category:'Fitness', subtype:'Cardio', has_text_input:true, goals:[
-          { goal_type:'daily', goal_value:1, completed:0 },
-          { goal_type:'weekly', goal_value:3, completed:1 },
-        ]
-      },
-      { id:4, name:'Lift', category:'Fitness', subtype:'Strength', has_text_input:true, goals:[
-          { goal_type:'weekly', goal_value:2, completed:1 },
-          { goal_type:'monthly', goal_value:8, completed:4 },
-        ]
-      },
-      { id:5, name:'Yoga', category:'Fitness', subtype:'Stretch', has_text_input:true, goals:[
-          { goal_type:'daily', goal_value:1, completed:1 },
           { goal_type:'monthly', goal_value:12, completed:5 },
         ]
       },
-      { id:6, name:'Learn JS', category:'Skill', subtype:'Programming', has_text_input:true, goals:[
+      { id:2, name:'Run', category:'Fitness', subtype:'Cardio', has_text_input:true, goals:[
           { goal_type:'daily', goal_value:1, completed:0 },
-          { goal_type:'monthly', goal_value:15, completed:5 },
+          { goal_type:'weekly', goal_value:3, completed:1 },
+          { goal_type:'monthly', goal_value:12, completed:4 },
+        ]
+      },
+      { id:3, name:'Lift', category:'Fitness', subtype:'Strength', has_text_input:true, goals:[
+          { goal_type:'weekly', goal_value:2, completed:1 },
+          { goal_type:'monthly', goal_value:8, completed:4 },
         ]
       }
     ];
 
+    let dummyActivity = [];
+
     // -------------------------
-    // Auth (Google only)
+    // Auth
     // -------------------------
     async function signInWithGoogle() {
       const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
@@ -105,13 +93,10 @@
       authContainer.innerHTML = `
         <p>Welcome, ${session.user.email} <button onclick="signOut()">Sign Out</button></p>
       `;
-      renderDashboard();
+      renderDashboard(session.user.email);
       renderActivity();
     }
 
-    // -------------------------
-    // Tab switching
-    // -------------------------
     function showTab(tab){
       document.getElementById('dashboard-tab').style.display = (tab==='dashboard') ? 'block' : 'none';
       document.getElementById('activity-tab').style.display = (tab==='activity') ? 'block' : 'none';
@@ -120,66 +105,65 @@
     // -------------------------
     // Dashboard
     // -------------------------
-    function renderDashboard(){
+    function renderDashboard(userEmail){
       const container = document.getElementById('dashboard-tab');
       container.innerHTML = '';
       dummyHabits.forEach(habit => {
         const habitDiv = document.createElement('div');
         habitDiv.className = 'habit-container';
-        habitDiv.innerHTML = `<h3>${habit.name} (${habit.category} / ${habit.subtype})</h3>`;
-        habit.goals.forEach(goal => {
-          const pct = Math.min((goal.completed/goal.goal_value)*100, 100).toFixed(1);
-          const progressHTML = `
-            <div class="progress-container">
-              <div class="progress-bar">
-                <div class="progress-bar-fill" style="width:${pct}%"></div>
+
+        habitDiv.innerHTML = `
+          <div class="habit-left">
+            <h3>${habit.name} (${habit.category} / ${habit.subtype})</h3>
+            <label><input type="checkbox" /> Completed</label><br/>
+            ${habit.has_text_input ? '<textarea placeholder="Add reflection..."></textarea><br/>' : ''}
+            <button onclick="postReflection('${habit.name}','${userEmail}', this)">Post</button>
+          </div>
+          <div class="habit-right">
+            ${habit.goals.map(goal=>{
+              const pct = Math.min((goal.completed/goal.goal_value)*100,100).toFixed(1);
+              return `
+              <div class="progress-container">
+                <div class="progress-bar">
+                  <div class="progress-bar-fill" style="width:${pct}%"></div>
+                </div>
+                <div class="progress-text">${goal.completed}/${goal.goal_value} (${pct}%)</div>
               </div>
-              <div class="progress-text">${goal.completed}/${goal.goal_value} (${pct}%)</div>
-            </div>
-          `;
-          habitDiv.innerHTML += progressHTML;
-        });
-        // Reflection + Post button
-        habitDiv.innerHTML += `
-          ${habit.has_text_input ? '<textarea placeholder="Add reflection..."></textarea><br/>' : ''}
-          <button onclick="postReflection('${habit.name}')">Post</button>
+              `;
+            }).join('')}
+          </div>
         `;
         container.appendChild(habitDiv);
       });
     }
 
     // -------------------------
-    // Activity Tab
+    // Activity
     // -------------------------
-    let dummyActivity = [];
     function renderActivity(){
       const container = document.getElementById('activity-tab');
       container.innerHTML = '<h3>Activity Feed</h3>';
       if(dummyActivity.length===0){
         container.innerHTML += '<p>No activity yet.</p>';
       } else {
-        dummyActivity.forEach(entry => {
+        dummyActivity.forEach(entry=>{
           const div = document.createElement('div');
           div.className = 'activity-entry';
-          div.innerHTML = `<strong>${entry.habit}</strong>: ${entry.reflection}`;
+          div.innerHTML = `<strong>${entry.user}</strong> posted <strong>${entry.habit}</strong>: ${entry.reflection}`;
           container.appendChild(div);
         });
       }
     }
 
-    function postReflection(habitName){
-      const habitDivs = document.querySelectorAll('.habit-container');
-      habitDivs.forEach(div=>{
-        if(div.querySelector('h3').textContent.startsWith(habitName)){
-          const textarea = div.querySelector('textarea');
-          if(textarea && textarea.value.trim()!==''){
-            dummyActivity.push({ habit: habitName, reflection: textarea.value.trim() });
-            textarea.value = '';
-            renderActivity();
-            showTab('activity');
-          }
-        }
-      });
+    function postReflection(habitName, userEmail, btn){
+      const habitDiv = btn.closest('.habit-left');
+      const textarea = habitDiv.querySelector('textarea');
+      if(textarea && textarea.value.trim()!==''){
+        dummyActivity.push({ habit: habitName, reflection: textarea.value.trim(), user:userEmail });
+        textarea.value = '';
+        renderActivity();
+        showTab('activity');
+      }
     }
 
     // -------------------------
@@ -187,7 +171,6 @@
     // -------------------------
     supabaseClient.auth.onAuthStateChange(()=>renderApp());
     renderApp();
-
   </script>
 </body>
 </html>
