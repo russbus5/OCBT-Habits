@@ -3,44 +3,142 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Supabase Test</title>
-</head>
-<body>
-  <h1>Supabase Test</h1>
-  <div id="auth"></div>
+  <title>Habit Tracker</title>
 
-  <!-- 1️⃣ Load Supabase JS -->
+  <!-- Supabase UMD (Browser global) -->
   <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
-  <!-- 2️⃣ Simple test code -->
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+    h1 { text-align: center; }
+    textarea { width: 100%; height: 50px; margin-top: 5px; }
+    .habit { border-bottom: 1px solid #ccc; padding: 10px 0; }
+    .habit label { font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Habit Tracker</h1>
+
+  <div id="auth-container"></div>
+  <div id="habit-dashboard"></div>
+
   <script>
-    window.addEventListener('DOMContentLoaded', () => {
-      // Check if Supabase loaded
-      if (!window.supabase) {
-        document.getElementById('auth').innerText = "Supabase failed to load!";
-        console.error("Supabase JS is not loaded. Check network / firewall.");
+    // -------------------------------
+    // 1️⃣ Supabase setup
+    // -------------------------------
+    const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co"; // replace with your URL
+    const SUPABASE_ANON_KEY = "sb_secret_QCnsOinMqa6pdqOTJrCCAA_XMhKqGBl"; // replace with your anon key
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const today = new Date().toISOString().split('T')[0];
+
+    // -------------------------------
+    // 2️⃣ Auth functions
+    // -------------------------------
+    async function signInWithGoogle() {
+      const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
+      if (error) alert("Login error: " + error.message);
+    }
+
+    async function signOut() {
+      await supabaseClient.auth.signOut();
+      window.location.reload();
+    }
+
+    // -------------------------------
+    // 3️⃣ Render login/dashboard
+    // -------------------------------
+    async function renderApp() {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      const authContainer = document.getElementById('auth-container');
+      const habitContainer = document.getElementById('habit-dashboard');
+
+      if (!session) {
+        authContainer.innerHTML = `<button id="loginBtn">Sign in with Google</button>`;
+        habitContainer.innerHTML = '';
+        document.getElementById("loginBtn").onclick = signInWithGoogle;
         return;
       }
 
-      console.log("Supabase loaded ✅");
+      authContainer.innerHTML = `
+        <p>Welcome, ${session.user.email}</p>
+        <button id="logoutBtn">Sign Out</button>
+      `;
+      document.getElementById("logoutBtn").onclick = signOut;
 
-      // Create client
-      const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co";
-      const SUPABASE_ANON_KEY = "sb_secret_QCnsOinMqa6pdqOTJrCCAA_XMhKqGBl";
-      const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      fetchAndRenderHabits(session.user.id);
+    }
 
-      console.log("Supabase client created ✅", supabaseClient);
+    // -------------------------------
+    // 4️⃣ Fetch & render habits
+    // -------------------------------
+    async function fetchAndRenderHabits(userId) {
+      const { data: habits, error } = await supabaseClient
+        .from("habits")
+        .select("*")
+        .eq("user_id", userId);
 
-      // Simple login button
-      const authDiv = document.getElementById('auth');
-      const btn = document.createElement('button');
-      btn.innerText = "Sign in with Google";
-      btn.onclick = async () => {
-        const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
-        if (error) alert("Login error: " + error.message);
-      };
-      authDiv.appendChild(btn);
-    });
+      if (error) { console.error(error); return; }
+
+      const container = document.getElementById('habit-dashboard');
+      container.innerHTML = '';
+
+      habits.forEach(habit => {
+        const div = document.createElement('div');
+        div.className = "habit";
+        div.innerHTML = `
+          <label><input type="checkbox" id="habit-${habit.id}" /> ${habit.name} (${habit.category})</label>
+          ${habit.has_text_input ? '<textarea placeholder="Add reflection..."></textarea>' : ''}
+          <div>
+            Share with group? <input type="checkbox" class="share-toggle" ${habit.has_text_input ? 'disabled' : ''}/>
+          </div>
+        `;
+        container.appendChild(div);
+
+        const checkbox = div.querySelector(`#habit-${habit.id}`);
+        const textarea = div.querySelector('textarea');
+        const shareToggle = div.querySelector('.share-toggle');
+
+        // Update shareToggle automatically when reflection is typed
+        if (textarea) {
+          textarea.addEventListener('input', () => {
+            shareToggle.checked = textarea.value.length > 0;
+          });
+        }
+
+        checkbox.addEventListener('change', () => saveHabitLog(userId, habit, checkbox.checked, textarea ? textarea.value : '', shareToggle.checked));
+      });
+    }
+
+    // -------------------------------
+    // 5️⃣ Save habit log
+    // -------------------------------
+    async function saveHabitLog(userId, habit, completed, reflectionText = "", share = false) {
+      const { data, error } = await supabaseClient
+        .from("habit_logs")
+        .upsert([{
+          user_id: userId,
+          habit_id: habit.id,
+          date: today,
+          completed: completed,
+          reflection_text: reflectionText,
+          share_toggle: share
+        }])
+        .select();
+
+      if (error) console.error("Error saving habit log:", error);
+      else console.log("Saved habit log:", data);
+    }
+
+    // -------------------------------
+    // 6️⃣ Auth state listener
+    // -------------------------------
+    supabaseClient.auth.onAuthStateChange(() => renderApp());
+
+    // -------------------------------
+    // 7️⃣ Initial load
+    // -------------------------------
+    renderApp();
   </script>
 </body>
 </html>
