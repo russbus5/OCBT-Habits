@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Habit Tracker</title>
 
-  <!-- Supabase JS CDN -->
+  <!-- Supabase UMD build -->
   <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
   <style>
@@ -27,24 +27,19 @@
     // ---------------------
     const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co";
     const SUPABASE_ANON_KEY = "sb_secret_QCnsOinMqa6pdqOTJrCCAA_XMhKqGBl";
-
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // ---------------------
-    // 2️⃣ Handle OAuth redirect
+    // 2️⃣ Handle OAuth redirect correctly
     // ---------------------
     async function handleRedirect() {
-      try {
-        const { data, error } = await supabaseClient.auth.getSessionFromUrl({ storeSession: true });
-        if (error) console.error("Error handling redirect:", error.message);
-        else if (data.session) console.log("Redirect session captured:", data.session);
+      // If URL contains an access_token/hash, store session
+      const { data, error } = await supabaseClient.auth.getSessionFromUrl({ storeSession: true });
+      if (error) console.error("Redirect error:", error.message);
 
-        // remove hash from URL for cleanliness
-        if (window.location.hash) {
-          history.replaceState(null, null, window.location.pathname);
-        }
-      } catch (err) {
-        console.error(err);
+      // Remove the hash to stop infinite loop
+      if (window.location.hash) {
+        history.replaceState(null, null, window.location.pathname);
       }
     }
 
@@ -112,13 +107,12 @@
     }
 
     // ---------------------
-    // 6️⃣ On load
+    // 6️⃣ Initialize
     // ---------------------
     handleRedirect().then(() => renderApp());
 
-    // Listen to auth changes (sign out from another tab, etc.)
+    // Listen to auth state changes
     supabaseClient.auth.onAuthStateChange(() => renderApp());
-
   </script>
 </body>
 </html>
