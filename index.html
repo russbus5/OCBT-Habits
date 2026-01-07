@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Habit Tracker</title>
 
-  <!-- Supabase UMD build -->
+  <!-- Supabase UMD -->
   <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
   <style>
@@ -30,21 +30,7 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // ---------------------
-    // 2️⃣ Handle OAuth redirect correctly
-    // ---------------------
-    async function handleRedirect() {
-      // If URL contains an access_token/hash, store session
-      const { data, error } = await supabaseClient.auth.getSessionFromUrl({ storeSession: true });
-      if (error) console.error("Redirect error:", error.message);
-
-      // Remove the hash to stop infinite loop
-      if (window.location.hash) {
-        history.replaceState(null, null, window.location.pathname);
-      }
-    }
-
-    // ---------------------
-    // 3️⃣ Auth functions
+    // 2️⃣ Auth functions
     // ---------------------
     async function signInWithGoogle() {
       const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
@@ -57,12 +43,9 @@
     }
 
     // ---------------------
-    // 4️⃣ Render login / dashboard
+    // 3️⃣ Render login / dashboard
     // ---------------------
-    async function renderApp() {
-      const { data: sessionData } = await supabaseClient.auth.getSession();
-      const session = sessionData.session;
-
+    async function renderApp(session) {
       const authContainer = document.getElementById('auth-container');
       const habitContainer = document.getElementById('habit-dashboard');
 
@@ -81,7 +64,7 @@
     }
 
     // ---------------------
-    // 5️⃣ Dummy habits for testing
+    // 4️⃣ Dummy habits for testing
     // ---------------------
     function renderDummyHabits() {
       const container = document.getElementById('habit-dashboard');
@@ -107,12 +90,19 @@
     }
 
     // ---------------------
-    // 6️⃣ Initialize
+    // 5️⃣ Initialize
     // ---------------------
-    handleRedirect().then(() => renderApp());
+    async function init() {
+      const { data } = await supabaseClient.auth.getSession();
+      renderApp(data.session);
+    }
 
-    // Listen to auth state changes
-    supabaseClient.auth.onAuthStateChange(() => renderApp());
+    // Listen for auth state changes (this handles redirect automatically)
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      renderApp(session);
+    });
+
+    init();
   </script>
 </body>
 </html>
