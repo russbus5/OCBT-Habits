@@ -1,225 +1,202 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8">
 <title>Habit Tracker</title>
 
 <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
 <style>
-body { font-family: Arial, sans-serif; padding:20px; }
-nav button { margin-right:10px; }
+body { font-family: Arial; padding:20px; }
+nav button { margin-right:8px; }
 .habit-row {
   display:grid;
-  grid-template-columns:120px 1fr 280px;
-  gap:15px;
-  padding:10px 0;
+  grid-template-columns:120px 1fr 260px;
+  gap:12px;
   border-bottom:1px solid #ddd;
+  padding:10px 0;
 }
-.progress-bar { height:14px; background:#eee; width:100%; }
-.progress-fill { height:100%; background:#4caf50; }
-.goal-label { font-size:12px; }
-.week-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; }
-.month-grid { display:grid; grid-template-columns:repeat(10,1fr); gap:5px; }
-.box { height:20px; background:#ddd; }
-.box.filled { background:#4caf50; }
+.progress-bar { background:#eee; height:14px; }
+.progress-fill { background:#4caf50; height:100%; }
 .hidden { display:none; }
-.activity-entry { border-bottom:1px solid #ddd; padding:8px 0; }
+.modal {
+  position:fixed; inset:0; background:rgba(0,0,0,.4);
+  display:flex; align-items:center; justify-content:center;
+}
+.modal-content {
+  background:white; padding:20px; width:300px;
+}
+.calendar {
+  display:grid; grid-template-columns:repeat(7,1fr); gap:4px;
+}
+.day { height:30px; background:#eee; }
+.day.filled { background:#4caf50; }
 </style>
 </head>
 
 <body>
-<h1>Habit Tracker</h1>
+
+<h1>
+  Habit Tracker
+  <button style="float:right" onclick="openGoalModal()">＋</button>
+</h1>
 
 <div id="auth"></div>
 
 <nav>
-  <button onclick="showTab('dashboard')">Dashboard</button>
-  <button onclick="showTab('weekly')">Weekly Activity</button>
-  <button onclick="showTab('monthly')">Monthly Activity</button>
-  <button onclick="showTab('activity')">Activity</button>
-  <button onclick="showTab('settings')">Settings</button>
+  <button onclick="show('dashboard')">Dashboard</button>
+  <button onclick="show('progress')">Progress</button>
+  <button onclick="show('activity')">Activity</button>
+  <button onclick="show('settings')">Settings</button>
 </nav>
 
 <div id="dashboard"></div>
-<div id="weekly" class="hidden"></div>
-<div id="monthly" class="hidden"></div>
+<div id="progress" class="hidden"></div>
 <div id="activity" class="hidden"></div>
 <div id="settings" class="hidden"></div>
 
+<!-- Goal Modal -->
+<div id="goalModal" class="modal hidden">
+  <div class="modal-content">
+    <h3>Create Goal</h3>
+    <input id="g-name" placeholder="Habit name"><br><br>
+    <select id="g-category">
+      <option>Exercise</option><option>Read</option><option>Learn</option>
+    </select><br><br>
+    <input id="g-subtype" placeholder="Subtype (Run, Lift...)"><br><br>
+    <select id="g-type">
+      <option value="weekly">Weekly</option>
+      <option value="monthly">Monthly</option>
+    </select><br><br>
+    <input id="g-target" type="number" placeholder="Target"><br><br>
+    <button onclick="createGoal()">Save</button>
+    <button onclick="closeGoalModal()">Cancel</button>
+  </div>
+</div>
+
 <script>
-/* ---------------- SUPABASE AUTH ONLY ---------------- */
 const supabaseClient = supabase.createClient(
   "https://drnkoftzavraufyjwjvx.supabase.co",
   "sb_publishable_3ZM5ByDTEwo3GS8KCbNHtw_zi6ewd6b"
 );
 
-/* ---------------- HELPERS ---------------- */
-function percent(c,t){ return ((c/t)*100); }
-function visual(p){ return Math.min(p,100); }
-function showTab(tab){
-  ["dashboard","weekly","monthly","activity","settings"].forEach(id=>{
-    document.getElementById(id).classList.add("hidden");
+let user;
+
+function show(id){
+  ["dashboard","progress","activity","settings"].forEach(x=>{
+    document.getElementById(x).classList.add("hidden");
   });
-  document.getElementById(tab).classList.remove("hidden");
+  document.getElementById(id).classList.remove("hidden");
 }
 
-/* ---------------- FAKE USERS ---------------- */
-const users = ["Russ Lee","Jamie Chen","Alex Morgan"];
+function openGoalModal(){ document.getElementById("goalModal").classList.remove("hidden"); }
+function closeGoalModal(){ document.getElementById("goalModal").classList.add("hidden"); }
 
-/* ---------------- FAKE ACTIVITY ---------------- */
-let activityLog = [
-  { name:"Jamie Chen", activity:"Completed Read", reflection:"Focused session", date:"2024-12-01" },
-  { name:"Alex Morgan", activity:"Completed Run", reflection:"Cold but solid", date:"2024-12-02" },
-  { name:"Russ Lee", activity:"Completed Read", reflection:"Learned a lot", date:"2024-12-03" }
-];
+async function createGoal(){
+  await supabaseClient.from("habits").insert({
+    user_id:user.id,
+    name: g-name.value,
+    category: g-category.value,
+    subtype: g-subtype.value,
+    goal_type: g-type.value,
+    target: Number(g-target.value)
+  });
+  closeGoalModal();
+  loadDashboard();
+}
 
-/* ---------------- HABITS ---------------- */
-const habits = [
-  {
-    name:"Read",
-    goals:[
-      {type:"daily", target:3, completed:4},
-      {type:"weekly", target:5, completed:3},
-      {type:"monthly", target:12, completed:14}
-    ]
-  },
-  {
-    name:"Run",
-    goals:[
-      {type:"daily", target:1, completed:1},
-      {type:"weekly", target:2, completed:3},
-      {type:"monthly", target:8, completed:6}
-    ]
-  }
-];
+async function loadDashboard(){
+  const today = new Date().toISOString().slice(0,10);
 
-/* ---------------- DASHBOARD ---------------- */
-function renderDashboard(){
-  const el = document.getElementById("dashboard");
-  el.innerHTML = "<h2>Dashboard</h2>";
+  const { data: habits } = await supabaseClient
+    .from("habits").select("*").eq("user_id", user.id);
+
+  const { data: logs } = await supabaseClient
+    .from("habit_logs").select("*").eq("user_id", user.id);
+
+  dashboard.innerHTML = "<h2>Daily</h2>";
 
   habits.forEach(h=>{
-    h.goals.filter(g=>g.type==="daily").forEach(g=>{
-      const p = percent(g.completed,g.target);
-      el.innerHTML += `
+    const weekCount = logs.filter(l=>l.habit_id===h.id).length;
+    const pct = (weekCount/h.target)*100;
+    const doneToday = logs.some(l=>l.habit_id===h.id && l.date===today);
+
+    dashboard.innerHTML += `
       <div class="habit-row">
         <div>
-          <input type="checkbox" onchange="toggle('${h.name}')">
-          <div>${h.name}</div>
-          <div class="goal-label">Daily</div>
+          <input type="checkbox" ${doneToday?"checked disabled":""}
+            onchange="complete('${h.id}')">
+          ${h.name}
         </div>
-        <div>
-          <textarea id="ref-${h.name}" placeholder="Reflection..."></textarea><br/>
-          <button onclick="post('${h.name}')">Post</button>
-        </div>
+        <textarea id="ref-${h.id}" placeholder="Reflection"></textarea>
         <div>
           <div class="progress-bar">
-            <div class="progress-fill" style="width:${visual(p)}%"></div>
+            <div class="progress-fill" style="width:${Math.min(pct,100)}%"></div>
           </div>
-          <div>${p.toFixed(1)}%</div>
+          ${weekCount}/${h.target} (${pct.toFixed(1)}%)
+          <br><button onclick="post('${h.id}')">Post</button>
         </div>
       </div>`;
-    });
   });
 }
 
-function toggle(name){
-  const h = habits.find(x=>x.name===name);
-  h.goals.find(g=>g.type==="daily").completed++;
-  renderDashboard();
-}
-
-/* ---------------- POST TO ACTIVITY ---------------- */
-function post(habit){
-  const text = document.getElementById(`ref-${habit}`).value;
-  activityLog.unshift({
-    name:"Russ Lee",
-    activity:`Completed ${habit}`,
-    reflection:text,
-    date:new Date().toISOString().split("T")[0]
+async function complete(id){
+  await supabaseClient.from("habit_logs").insert({
+    user_id:user.id,
+    habit_id:id,
+    date:new Date().toISOString().slice(0,10)
   });
-  renderActivity();
+  loadDashboard();
 }
 
-/* ---------------- WEEKLY ---------------- */
-function renderWeekly(){
-  const el = document.getElementById("weekly");
-  el.innerHTML = "<h2>Weekly Activity</h2>";
-  habits.forEach(h=>{
-    h.goals.filter(g=>g.type==="weekly").forEach(g=>{
-      const p = percent(g.completed,g.target);
-      el.innerHTML += `
-      <h4>${h.name}</h4>
-      <div class="week-grid">
-        ${Array.from({length:7}).map((_,i)=>`<div class="box ${i<g.completed?'filled':''}"></div>`).join("")}
-      </div>
-      <div>${p.toFixed(1)}%</div>`;
-    });
+async function post(id){
+  const text = document.getElementById("ref-"+id).value;
+  await supabaseClient.from("activity").insert({
+    user_id:user.id,
+    habit_id:id,
+    reflection:text
   });
+  alert("Posted to Activity");
 }
 
-/* ---------------- MONTHLY ---------------- */
-function renderMonthly(){
-  const el = document.getElementById("monthly");
-  el.innerHTML = "<h2>Monthly Activity</h2>";
-  habits.forEach(h=>{
-    h.goals.filter(g=>g.type==="monthly").forEach(g=>{
-      const p = percent(g.completed,g.target);
-      el.innerHTML += `
-      <h4>${h.name}</h4>
-      <div class="month-grid">
-        ${Array.from({length:30}).map((_,i)=>`<div class="box ${i<g.completed?'filled':''}"></div>`).join("")}
-      </div>
-      <div>${p.toFixed(1)}%</div>`;
-    });
-  });
-}
+async function loadActivity(){
+  const { data } = await supabaseClient
+    .from("activity")
+    .select("reflection,created_at,habits(name)")
+    .order("created_at",{ascending:false});
 
-/* ---------------- ACTIVITY ---------------- */
-function renderActivity(){
-  const el = document.getElementById("activity");
-  el.innerHTML = "<h2>Activity Log</h2>";
-  activityLog.forEach(a=>{
-    el.innerHTML += `
-      <div class="activity-entry">
-        <strong>${a.name}</strong> — ${a.activity}<br/>
-        <em>${a.reflection}</em><br/>
-        <small>${a.date}</small>
+  activity.innerHTML = "<h2>Activity</h2>";
+  data.forEach(a=>{
+    activity.innerHTML += `
+      <div>
+        <strong>${a.habits.name}</strong><br>
+        ${a.reflection}<br>
+        <small>${a.created_at}</small>
       </div>`;
   });
 }
 
-/* ---------------- SETTINGS ---------------- */
-function renderSettings(){
-  document.getElementById("settings").innerHTML = `
-    <h2>Settings</h2>
-    <button onclick="logout()">Log out</button>
-  `;
+async function loadSettings(){
+  settings.innerHTML = `<button onclick="logout()">Log out</button>`;
 }
 
-/* ---------------- AUTH ---------------- */
-async function login(){
-  await supabaseClient.auth.signInWithOAuth({provider:"google"});
-}
 async function logout(){
   await supabaseClient.auth.signOut();
   location.reload();
 }
 
-supabaseClient.auth.onAuthStateChange((_e,session)=>{
-  const auth = document.getElementById("auth");
+supabaseClient.auth.onAuthStateChange(async (_,session)=>{
   if(!session){
-    auth.innerHTML = `<button onclick="login()">Sign in with Google</button>`;
+    auth.innerHTML = `<button onclick="supabaseClient.auth.signInWithOAuth({provider:'google'})">Sign in</button>`;
   } else {
-    auth.innerHTML = `<p>Signed in as ${session.user.email}</p>`;
-    renderDashboard();
-    renderWeekly();
-    renderMonthly();
-    renderActivity();
-    renderSettings();
+    user = session.user;
+    auth.innerHTML = `Signed in as ${user.email}`;
+    loadDashboard();
+    loadActivity();
+    loadSettings();
   }
 });
 </script>
+
 </body>
 </html>
