@@ -3,11 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mother fucker</title>
+  <title>Habit Tracker</title>
 
-  <!-- Supabase JS CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.34.0/dist/supabase.min.js"></script>
-
+  <!-- Styles -->
   <style>
     body { font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; }
     textarea { width: 100%; height: 50px; margin-top: 5px; }
@@ -18,119 +16,122 @@
   </style>
 </head>
 <body>
-  <h1>I'm dying</h1>
+  <h1>Habit Tracker</h1>
   <div id="auth-container"></div>
   <div id="habit-dashboard"></div>
 
+  <!-- 1️⃣ Supabase JS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.34.0/dist/supabase.min.js"
+          onload="initSupabase()"></script>
+
+  <!-- 2️⃣ App code -->
   <script>
-    // ---------------------
-    // 1️⃣ Supabase setup
-    // ---------------------
     function initSupabase() {
+      // ---------------------
+      // Supabase setup
+      // ---------------------
       const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co";
       const SUPABASE_ANON_KEY = "sb_secret_QCnsOinMqa6pdqOTJrCCAA_XMhKqGBl";
       const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-      console.log("Supabase client initialized", supabaseClient);
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
-    // You can now call your login / dashboard functions safely
-      renderApp();
-
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-
-    // ---------------------
-    // 2️⃣ Auth functions
-    // ---------------------
-    async function signInWithGoogle() {
-      const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
-      if (error) alert("Login error: " + error.message);
-    }
-
-    async function signOut() {
-      await supabaseClient.auth.signOut();
-      window.location.reload();
-    }
-
-    // ---------------------
-    // 3️⃣ Render login / dashboard
-    // ---------------------
-    async function renderApp() {
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      const authContainer = document.getElementById('auth-container');
-      const habitContainer = document.getElementById('habit-dashboard');
-
-      if (!session) {
-        authContainer.innerHTML = `<button onclick="signInWithGoogle()">Sign in with Google</button>`;
-        habitContainer.innerHTML = '';
-        return;
+      // ---------------------
+      // Auth functions
+      // ---------------------
+      async function signInWithGoogle() {
+        const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
+        if (error) alert("Login error: " + error.message);
       }
 
-      authContainer.innerHTML = `
-        <p>Welcome, ${session.user.email}</p>
-        <button onclick="signOut()">Sign Out</button>
-      `;
+      async function signOut() {
+        await supabaseClient.auth.signOut();
+        window.location.reload();
+      }
 
-      loadHabits(session.user.id);
-    }
+      // ---------------------
+      // Render login / dashboard
+      // ---------------------
+      async function renderApp() {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const authContainer = document.getElementById('auth-container');
+        const habitContainer = document.getElementById('habit-dashboard');
 
-    // ---------------------
-    // 4️⃣ Load habits and render checkboxes + reflections
-    // ---------------------
-    async function loadHabits(userId) {
-      const { data: habits, error } = await supabaseClient
-        .from("habits")
-        .select("*")
-        .eq("user_id", userId);
+        if (!session) {
+          authContainer.innerHTML = `<button id="loginBtn">Sign in with Google</button>`;
+          habitContainer.innerHTML = '';
+          document.getElementById("loginBtn").onclick = signInWithGoogle;
+          return;
+        }
 
-      const container = document.getElementById('habit-dashboard');
-      if (error) { container.innerHTML = "Error loading habits"; console.error(error); return; }
-
-      container.innerHTML = '';
-      habits.forEach(habit => {
-        const div = document.createElement('div');
-        div.className = 'habit';
-        div.innerHTML = `
-          <h3>${habit.name} (${habit.category})</h3>
-          <input type="checkbox" id="habit-${habit.id}" /> Completed
-          ${habit.has_text_input ? '<br/><textarea placeholder="Add reflection..."></textarea>' : ''}
-          <br/>
-          Share with group? <input type="checkbox" class="share-toggle" />
+        authContainer.innerHTML = `
+          <p>Welcome, ${session.user.email}</p>
+          <button id="logoutBtn">Sign Out</button>
         `;
-        container.appendChild(div);
+        document.getElementById("logoutBtn").onclick = signOut;
 
-        const checkbox = div.querySelector(`#habit-${habit.id}`);
-        const textarea = div.querySelector('textarea');
-        const shareToggle = div.querySelector('.share-toggle');
+        loadHabits(session.user.id);
+      }
 
-        const saveLog = async () => {
-          const reflectionText = textarea ? textarea.value.trim() : '';
-          const { data, error } = await supabaseClient
-            .from("habit_logs")
-            .upsert([{
-              user_id: userId,
-              habit_id: habit.id,
-              date: today,
-              reflection_text: reflectionText,
-              share_toggle: reflectionText.length > 0 ? shareToggle.checked : false,
-              completed: checkbox.checked
-            }])
-            .select();
+      // ---------------------
+      // Load habits and render checkboxes + reflections
+      // ---------------------
+      async function loadHabits(userId) {
+        const { data: habits, error } = await supabaseClient
+          .from("habits")
+          .select("*")
+          .eq("user_id", userId);
 
-          if (error) console.error(error);
-          else console.log("Saved habit log:", data);
-        };
+        const container = document.getElementById('habit-dashboard');
+        if (error) { container.innerHTML = "Error loading habits"; console.error(error); return; }
 
-        checkbox.addEventListener('change', saveLog);
-        if (textarea) textarea.addEventListener('input', saveLog);
-        shareToggle.addEventListener('change', saveLog);
-      });
+        container.innerHTML = '';
+        habits.forEach(habit => {
+          const div = document.createElement('div');
+          div.className = 'habit';
+          div.innerHTML = `
+            <h3>${habit.name} (${habit.category})</h3>
+            <input type="checkbox" id="habit-${habit.id}" /> Completed
+            ${habit.has_text_input ? '<br/><textarea placeholder="Add reflection..."></textarea>' : ''}
+            <br/>
+            Share with group? <input type="checkbox" class="share-toggle" />
+          `;
+          container.appendChild(div);
+
+          const checkbox = div.querySelector(`#habit-${habit.id}`);
+          const textarea = div.querySelector('textarea');
+          const shareToggle = div.querySelector('.share-toggle');
+
+          const saveLog = async () => {
+            const reflectionText = textarea ? textarea.value.trim() : '';
+            const { data, error } = await supabaseClient
+              .from("habit_logs")
+              .upsert([{
+                user_id: userId,
+                habit_id: habit.id,
+                date: today,
+                reflection_text: reflectionText,
+                share_toggle: reflectionText.length > 0 ? shareToggle.checked : false,
+                completed: checkbox.checked
+              }])
+              .select();
+
+            if (error) console.error(error);
+            else console.log("Saved habit log:", data);
+          };
+
+          checkbox.addEventListener('change', saveLog);
+          if (textarea) textarea.addEventListener('input', saveLog);
+          shareToggle.addEventListener('change', saveLog);
+        });
+      }
+
+      // ---------------------
+      // Initial load & auth listener
+      // ---------------------
+      renderApp();
+      supabaseClient.auth.onAuthStateChange(() => renderApp());
     }
-
-    // ---------------------
-    // 5️⃣ Initial load & auth listener
-    // ---------------------
-    renderApp();
-    supabaseClient.auth.onAuthStateChange(() => renderApp());
   </script>
 </body>
 </html>
