@@ -26,9 +26,15 @@
     // ---------------------
     // 1️⃣ Supabase setup
     // ---------------------
-    const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co"; // your project URL
-    const SUPABASE_ANON_KEY = "sb_secret_QCnsOinMqa6pdqOTJrCCAA_XMhKqGBl"; // your anon key
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    function initSupabase() {
+      const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co";
+      const SUPABASE_ANON_KEY = "sb_secret_QCnsOinMqa6pdqOTJrCCAA_XMhKqGBl";
+      const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      console.log("Supabase client initialized", supabaseClient);
+
+    // You can now call your login / dashboard functions safely
+      renderApp();
 
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
