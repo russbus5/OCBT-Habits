@@ -1,300 +1,102 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>Habit Tracker</title>
+  <meta charset="UTF-8" />
+  <title>Habit Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-<!-- Supabase -->
-<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <!-- ✅ SUPABASE UMD (THIS ONE WORKS) -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
-<!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<style>
-body { font-family: Arial; background:#f5f5f5; margin:0; }
-header {
-  background:#222; color:white; padding:12px;
-  display:flex; justify-content:space-between; align-items:center;
-}
-.hidden { display:none !important; }
-
-.container { padding:20px; }
-
-.habit-row {
-  display:grid;
-  grid-template-columns: 80px 1fr 220px;
-  gap:12px;
-  background:white;
-  padding:12px;
-  margin-bottom:10px;
-  align-items:center;
-}
-
-.progress-bar {
-  height:10px;
-  background:#ddd;
-  border-radius:6px;
-  overflow:hidden;
-}
-.progress-bar div {
-  height:100%;
-  background:#4caf50;
-}
-
-.modal {
-  position:fixed;
-  inset:0;
-  background:rgba(0,0,0,.5);
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  z-index:1000;
-}
-.modal-content {
-  background:white;
-  padding:20px;
-  width:320px;
-}
-</style>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont;
+      padding: 24px;
+    }
+    button {
+      padding: 8px 12px;
+      margin-top: 8px;
+      cursor: pointer;
+    }
+    #app {
+      margin-top: 24px;
+    }
+  </style>
 </head>
-
 <body>
 
-<header id="appHeader" class="hidden">
-  <strong>Habit Tracker</strong>
-  <div>
-    <button onclick="openGoalModal()">＋</button>
-    <button onclick="switchTab('dashboard')">Dashboard</button>
-    <button onclick="switchTab('activity')">Activity</button>
-    <button onclick="switchTab('charts')">Progress</button>
-    <button onclick="switchTab('settings')">Settings</button>
-  </div>
-</header>
+  <h1>Habit Tracker</h1>
+  <div id="app">Loading…</div>
 
-<div class="container">
+  <script>
+    /*************************************************
+     * 1️⃣ SUPABASE CONFIG (MUST BE FIRST)
+     *************************************************/
+    const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_3ZM5ByDTEwo3GS8KCbNHtw_zi6ewd6b";
 
-  <!-- AUTH -->
-  <div id="auth">
-    <button onclick="signIn()">Sign in with Google</button>
-  </div>
+    const supabaseClient = supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY
+    );
 
-  <div id="dashboard" class="hidden"></div>
-  <div id="activity" class="hidden"></div>
+    /*************************************************
+     * 2️⃣ AUTH ACTIONS
+     *************************************************/
+    async function signIn() {
+      await supabaseClient.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin
+        }
+      });
+    }
 
-  <!-- CHARTS -->
-  <div id="charts" class="hidden">
-    <h3>Weekly Progress</h3>
-    <canvas id="weeklyChart"></canvas>
-    <h3 style="margin-top:30px;">Monthly Progress</h3>
-    <canvas id="monthlyChart"></canvas>
-  </div>
+    async function signOut() {
+      await supabaseClient.auth.signOut();
+      render();
+    }
 
-  <div id="settings" class="hidden">
-    <button onclick="logout()">Log Out</button>
-  </div>
-</div>
+    /*************************************************
+     * 3️⃣ RENDER LOGIC
+     *************************************************/
+    async function render() {
+      const { data } = await supabaseClient.auth.getSession();
+      const session = data.session;
+      const app = document.getElementById("app");
 
-<!-- CREATE GOAL MODAL (NEVER AUTO-OPENED) -->
-<div id="goalModal" class="modal hidden">
-  <div class="modal-content">
-    <h3>Create Goal</h3>
+      // NOT SIGNED IN
+      if (!session) {
+        app.innerHTML = `
+          <p>You are not signed in.</p>
+          <button onclick="signIn()">Sign in with Google</button>
+        `;
+        return;
+      }
 
-    <input id="g-name" placeholder="Goal name"><br><br>
-    <input id="g-subtype" placeholder="Subtype"><br><br>
+      // SIGNED IN
+      app.innerHTML = `
+        <p>Welcome <strong>${session.user.email}</strong></p>
 
-    <select id="g-type">
-      <option value="daily">Daily</option>
-      <option value="weekly">Weekly</option>
-      <option value="monthly">Monthly</option>
-    </select><br><br>
+        <h3>Dashboard (dummy data)</h3>
+        <ul>
+          <li>📘 Read — 2 / 5 this week</li>
+          <li>🏃 Run — 1 / 3 this week</li>
+        </ul>
 
-    <input id="g-target" type="number" placeholder="Target"><br><br>
-    <input id="g-units" placeholder="Units"><br><br>
+        <button onclick="signOut()">Log out</button>
+      `;
+    }
 
-    <button onclick="createGoal()">Save</button>
-    <button onclick="closeGoalModal()">Cancel</button>
-  </div>
-</div>
+    /*************************************************
+     * 4️⃣ HANDLE AUTH REDIRECT + INITIAL LOAD
+     *************************************************/
+    supabaseClient.auth.onAuthStateChange(() => {
+      render();
+    });
 
-<script>
-/* ---------------- CONFIG ---------------- */
-const supabaseClient = supabase.createClient(
-  "YOUR_SUPABASE_URL",
-  "YOUR_PUBLIC_ANON_KEY"
-);
-
-let user = null;
-let weeklyChart, monthlyChart;
-
-/* ---------------- AUTH ---------------- */
-async function signIn() {
-  await supabaseClient.auth.signInWithOAuth({ provider: "google" });
-}
-
-async function logout() {
-  await supabaseClient.auth.signOut();
-  location.reload();
-}
-
-supabaseClient.auth.onAuthStateChange((_, session) => {
-  if (!session) return;
-  user = session.user;
-  document.getElementById("auth").classList.add("hidden");
-  document.getElementById("appHeader").classList.remove("hidden");
-  switchTab("dashboard");
-});
-
-/* ---------------- TABS ---------------- */
-function switchTab(tab) {
-  ["dashboard","activity","charts","settings"].forEach(t =>
-    document.getElementById(t).classList.add("hidden")
-  );
-  document.getElementById(tab).classList.remove("hidden");
-
-  if (tab === "dashboard") loadDashboard();
-  if (tab === "activity") loadActivity();
-  if (tab === "charts") loadCharts();
-}
-
-/* ---------------- MODAL (ONLY BUTTON-CALLED) ---------------- */
-function openGoalModal() {
-  document.getElementById("goalModal").classList.remove("hidden");
-}
-function closeGoalModal() {
-  document.getElementById("goalModal").classList.add("hidden");
-}
-
-/* ---------------- GOALS ---------------- */
-async function createGoal() {
-  await supabaseClient.from("habits").insert({
-    user_id: user.id,
-    name: g("g-name"),
-    subtype: g("g-subtype"),
-    goal_type: g("g-type"),
-    target: Number(g("g-target")),
-    units: g("g-units")
-  });
-  closeGoalModal();
-  loadDashboard();
-}
-
-/* ---------------- DASHBOARD ---------------- */
-async function loadDashboard() {
-  const { data: habits } = await supabaseClient
-    .from("habits")
-    .select("*")
-    .eq("user_id", user.id);
-
-  const { data: logs } = await supabaseClient
-    .from("habit_logs")
-    .select("*")
-    .eq("user_id", user.id);
-
-  const d = document.getElementById("dashboard");
-  d.innerHTML = "";
-
-  habits.forEach(h => {
-    const total = logs.filter(l => l.habit_id === h.id)
-      .reduce((a,b)=>a+b.amount,0);
-
-    const pct = (total / h.target) * 100;
-
-    d.innerHTML += `
-      <div class="habit-row">
-        <div>
-          <input type="checkbox" onclick="completeHabit('${h.id}')">
-        </div>
-        <div>
-          <strong>${h.name}</strong><br>
-          ${h.goal_type} goal
-        </div>
-        <div>
-          ${total}/${h.target} ${h.units}
-          <div class="progress-bar">
-            <div style="width:${Math.min(pct,200)}%"></div>
-          </div>
-          ${pct.toFixed(1)}%
-        </div>
-      </div>
-    `;
-  });
-}
-
-async function completeHabit(habitId) {
-  const today = new Date().toISOString().slice(0,10);
-
-  const { data: existing } = await supabaseClient
-    .from("habit_logs")
-    .select("id")
-    .eq("habit_id", habitId)
-    .eq("log_date", today)
-    .maybeSingle();
-
-  if (existing) return alert("Already completed today");
-
-  await supabaseClient.from("habit_logs").insert({
-    habit_id: habitId,
-    user_id: user.id,
-    log_date: today,
-    amount: 1
-  });
-
-  alert("Posted to Activity");
-  loadDashboard();
-}
-
-/* ---------------- ACTIVITY ---------------- */
-async function loadActivity() {
-  const { data } = await supabaseClient
-    .from("habit_logs")
-    .select("*, habits(name)")
-    .order("created_at", { ascending:false });
-
-  const a = document.getElementById("activity");
-  a.innerHTML = data.map(l => `
-    <div>
-      <strong>${l.habits.name}</strong> — ${l.amount}
-      <br><small>${new Date(l.created_at).toLocaleString()}</small>
-      <hr>
-    </div>
-  `).join("");
-}
-
-/* ---------------- CHARTS ---------------- */
-async function loadCharts() {
-  const { data } = await supabaseClient
-    .from("habit_logs")
-    .select("log_date, amount")
-    .eq("user_id", user.id);
-
-  const week = Array(7).fill(0);
-  const month = {};
-
-  data.forEach(l => {
-    const d = new Date(l.log_date);
-    week[d.getDay()] += l.amount;
-    month[d.getDate()] = (month[d.getDate()] || 0) + l.amount;
-  });
-
-  weeklyChart?.destroy();
-  weeklyChart = new Chart(weeklyChartEl(), {
-    type:'bar',
-    data:{ labels:["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],
-      datasets:[{ data:week, label:"Weekly" }] }
-  });
-
-  monthlyChart?.destroy();
-  monthlyChart = new Chart(monthlyChartEl(), {
-    type:'bar',
-    data:{ labels:Object.keys(month),
-      datasets:[{ data:Object.values(month), label:"Monthly" }] }
-  });
-}
-
-function weeklyChartEl(){ return document.getElementById("weeklyChart"); }
-function monthlyChartEl(){ return document.getElementById("monthlyChart"); }
-function g(id){ return document.getElementById(id).value; }
-</script>
+    render();
+  </script>
 
 </body>
 </html>
