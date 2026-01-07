@@ -10,12 +10,13 @@
     .tab { display: none; margin-top: 20px; }
     .tab.active { display: block; }
     button { margin: 5px; padding: 5px 10px; }
-    .progress-bar { background: #eee; width: 300px; height: 20px; position: relative; margin-bottom: 10px; }
+    .progress-bar { background: #eee; width: 100px; height: 20px; position: relative; display:inline-block; vertical-align: middle; margin-left: 5px; }
     .progress-bar-fill { background: green; height: 100%; }
     textarea { width: 300px; height: 50px; }
     hr { margin: 15px 0; }
-    table { border-collapse: collapse; margin-top: 10px; }
+    table { border-collapse: collapse; margin-top: 10px; width: 100%; }
     td, th { border: 1px solid #aaa; padding: 5px; text-align: center; }
+    td.progress-cell { width: 120px; }
   </style>
 </head>
 <body>
@@ -25,13 +26,13 @@
   <!-- Tab buttons -->
   <div>
     <button onclick="showTab('dashboard')">Dashboard</button>
-    <button onclick="showTab('weekly')">Weekly View</button>
+    <button onclick="showTab('monthly')">Monthly View</button>
     <button onclick="showTab('settings')">Settings</button>
   </div>
 
   <!-- Tabs -->
   <div id="dashboard" class="tab"></div>
-  <div id="weekly" class="tab"></div>
+  <div id="monthly" class="tab"></div>
   <div id="settings" class="tab">
     <button onclick="logout()">Log Out</button>
   </div>
@@ -44,7 +45,7 @@
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.getElementById(tabId).classList.add('active');
 
-      if (tabId === 'weekly') renderWeeklyView();
+      if (tabId === 'monthly') renderMonthlyView();
     }
 
     // ---------------------
@@ -56,7 +57,7 @@
       { id: 3, name: 'Meditate', category: 'Wellness', has_text_input: true, goal_per_week: 7, completedCount: 0 }
     ];
 
-    const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const monthDays = Array.from({length:30}, (_, i) => i + 1);
 
     // ---------------------
     // Render Dashboard
@@ -115,26 +116,40 @@
     }
 
     // ---------------------
-    // Weekly view
+    // Monthly view
     // ---------------------
-    function renderWeeklyView() {
-      const container = document.getElementById('weekly');
-      container.innerHTML = '<h2>Weekly Habit Tracker</h2>';
+    function renderMonthlyView() {
+      const container = document.getElementById('monthly');
+      container.innerHTML = '<h2>Monthly Habit Tracker</h2>';
 
       const table = document.createElement('table');
 
       // Header row
       const header = document.createElement('tr');
-      header.innerHTML = `<th>Habit</th>${weekdays.map(d => `<th>${d}</th>`).join('')}`;
+      header.innerHTML = `<th>Habit</th>` + monthDays.map(d => `<th>${d}</th>`).join('') + `<th>Progress</th>`;
       table.appendChild(header);
 
       dummyHabits.forEach(habit => {
         const row = document.createElement('tr');
-        row.innerHTML = `<td>${habit.name}</td>` + weekdays.map((day, i) => {
-          // Add some fake data: randomly checked
-          const checked = Math.random() > 0.5 ? 'checked' : '';
-          return `<td><input type="checkbox" ${checked}></td>`;
-        }).join('');
+
+        // Random fake data: 0 or 1 completed
+        const completions = monthDays.map(() => Math.random() > 0.5 ? 1 : 0);
+
+        habit.completedCount = completions.reduce((a,b)=>a+b,0);
+
+        const cells = completions.map(c => `<td><input type="checkbox" ${c ? 'checked' : ''} disabled></td>`).join('');
+
+        // Progress bar and numeric display
+        const fraction = habit.completedCount / 30;
+        const percent = (fraction*100).toFixed(1);
+        const progressCell = `<td class="progress-cell">
+                                <div class="progress-bar">
+                                  <div class="progress-bar-fill" style="width:${percent}%"></div>
+                                  <span style="position:absolute;left:50%;top:0;color:white;font-weight:bold;">${habit.completedCount}/30 (${percent}%)</span>
+                                </div>
+                              </td>`;
+
+        row.innerHTML = `<td>${habit.name}</td>${cells}${progressCell}`;
         table.appendChild(row);
       });
 
