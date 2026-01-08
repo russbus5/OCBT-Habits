@@ -4,106 +4,143 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Habit Tracker</title>
+
 <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.8/dayjs.min.js"></script>
+
 <style>
-body { font-family: sans-serif; padding: 20px; }
-textarea { width: 300px; height: 50px; }
-.modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); justify-content:center; align-items:center; }
-.modal-content { background:white; padding:20px; border-radius:10px; width: 300px; }
-.tabs button { margin-right:5px; }
-.progress-container { width: 200px; display:inline-block; margin-left:10px; vertical-align: top; }
+body {
+  font-family: sans-serif;
+  margin: 0;
+  padding: 20px;
+}
+
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.tabs button {
+  margin-right: 8px;
+}
+
+.actions button {
+  margin-left: 8px;
+}
+
+.tab {
+  display: none;
+}
+
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background: white;
+  padding: 20px;
+  width: 320px;
+  border-radius: 10px;
+}
+
+input, select {
+  width: 100%;
+  margin-bottom: 10px;
+}
 </style>
 </head>
-<body>
-<h1>Habit Tracker</h1>
 
-<div class="tabs">
-<button onclick="showTab('dashboard')">Dashboard</button>
-<button onclick="showTab('activity')">Activity</button>
-<button onclick="showTab('settings')">Settings</button>
+<body>
+
+<div class="top-bar">
+  <div class="tabs">
+    <button onclick="showTab('dashboard')">Dashboard</button>
+    <button onclick="showTab('progress')">Habit Progress</button>
+    <button onclick="showTab('goals')">Goals</button>
+    <button onclick="showTab('activity')">Activity</button>
+  </div>
+
+  <div class="actions" id="auth-actions"></div>
 </div>
 
-<div id="auth-container"></div>
+<div id="dashboard" class="tab"></div>
+<div id="progress" class="tab"></div>
+<div id="goals" class="tab"></div>
+<div id="activity" class="tab"></div>
 
-<div id="dashboard-tab"></div>
-<div id="activity-tab" style="display:none;"></div>
-<div id="settings-tab" style="display:none;"></div>
-
+<!-- PROFILE MODAL -->
 <div id="profile-modal" class="modal">
   <div class="modal-content">
-    <h3>Complete Your Profile</h3>
-    <input id="first-name" placeholder="First Name" /><br/><br/>
-    <input id="last-name" placeholder="Last Name" /><br/><br/>
-    <input id="height" placeholder="Height (cm)" type="number" /><br/><br/>
-    <input id="weight" placeholder="Weight (kg)" type="number" /><br/><br/>
-    <button id="save-profile-btn">Save</button>
+    <h3>Complete Profile</h3>
+    <input id="first-name" placeholder="First Name" />
+    <input id="last-name" placeholder="Last Name" />
+    <input id="height" type="number" placeholder="Height" />
+    <input id="weight" type="number" placeholder="Weight" />
+    <button onclick="saveProfile()">Save</button>
+  </div>
+</div>
+
+<!-- GOAL MODAL -->
+<div id="goal-modal" class="modal">
+  <div class="modal-content">
+    <h3>New Goal</h3>
+    <input id="goal-name" placeholder="Goal name" />
+    <input id="goal-category" placeholder="Category (e.g. Fitness)" />
+    <input id="goal-subtype" placeholder="Subtype (e.g. Running)" />
+    <select id="goal-cadence">
+      <option value="daily">Daily</option>
+      <option value="weekly">Weekly</option>
+    </select>
+    <button onclick="saveGoal()">Save Goal</button>
   </div>
 </div>
 
 <script>
-const SUPABASE_URL = "https://drnkoftzavraufyjwjvx.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_3ZM5ByDTEwo3GS8KCbNHtw_zi6ewd6b";
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = supabase.createClient(
+  "https://drnkoftzavraufyjwjvx.supabase.co",
+  "sb_publishable_3ZM5ByDTEwo3GS8KCbNHtw_zi6ewd6b"
+);
 
 let currentUser = null;
 
-// ---------------------
-// Tabs
-// ---------------------
-function showTab(tab) {
-  document.getElementById('dashboard-tab').style.display = tab==='dashboard'? 'block':'none';
-  document.getElementById('activity-tab').style.display = tab==='activity'? 'block':'none';
-  document.getElementById('settings-tab').style.display = tab==='settings'? 'block':'none';
+/* ---------------- Tabs ---------------- */
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.style.display = 'none');
+  document.getElementById(id).style.display = 'block';
 }
 
-// ---------------------
-// Check profile
-// ---------------------
-async function checkProfile() {
-  const { data: user, error } = await supabaseClient.auth.getUser();
-  if (error) return console.error(error);
-  currentUser = user.user;
+/* ---------------- Auth ---------------- */
+async function initAuth() {
+  const { data } = await supabaseClient.auth.getSession();
+  currentUser = data.session?.user || null;
 
-  // Check if userprofile exists
-  const { data: profile, error: profileError } = await supabaseClient
-    .from('userprofile')
-    .select('*')
-    .eq('user_id', currentUser.id)
-    .single();
+  const actions = document.getElementById('auth-actions');
 
-  if (!profile) {
-    // Show modal to create profile
-    const modal = document.getElementById('profile-modal');
-    modal.style.display = 'flex';
-
-    document.getElementById('save-profile-btn').onclick = async () => {
-      const first = document.getElementById('first-name').value.trim();
-      const last = document.getElementById('last-name').value.trim();
-      const height = parseFloat(document.getElementById('height').value);
-      const weight = parseFloat(document.getElementById('weight').value);
-
-      if (!first || !last) return alert("First and last name required");
-
-      const { data, error } = await supabaseClient
-        .from('userprofile')
-        .insert([{ user_id: currentUser.id, first_name: first, last_name: last, height, weight }])
-        .select();
-
-      if (error) return alert("Failed to save profile: " + error.message);
-
-      modal.style.display = 'none';
-      renderApp();
-    };
+  if (!currentUser) {
+    actions.innerHTML = `<button onclick="signIn()">Sign In</button>`;
+    return;
   }
+
+  actions.innerHTML = `
+    <button onclick="openGoalModal()">+ Add Goal</button>
+    <button onclick="signOut()">Sign Out</button>
+  `;
+
+  await checkProfile();
+  loadDashboard();
+  loadGoals();
+  loadProgress();
 }
 
-// ---------------------
-// Auth functions
-// ---------------------
-async function signInWithGoogle() {
-  const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
-  if (error) alert(error.message);
+async function signIn() {
+  await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
 }
 
 async function signOut() {
@@ -111,102 +148,106 @@ async function signOut() {
   location.reload();
 }
 
-// ---------------------
-// Render App
-// ---------------------
-async function renderApp() {
-  const { data: sessionRes } = await supabaseClient.auth.getSession();
-  const session = sessionRes.session;
-  const authContainer = document.getElementById('auth-container');
+/* ---------------- Profile ---------------- */
+async function checkProfile() {
+  const { data } = await supabaseClient
+    .from('userprofile')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .single();
 
-  if (!session) {
-    authContainer.innerHTML = `<button onclick="signInWithGoogle()">Sign in with Google</button>`;
-    return;
+  if (!data) {
+    document.getElementById('profile-modal').style.display = 'flex';
   }
-
-  authContainer.innerHTML = `
-    <p>Welcome, ${session.user.email}</p>
-    <button onclick="signOut()">Sign Out</button>
-    <button onclick="showCreateGoal()">+ Add Goal</button>
-  `;
-
-  checkProfile();
-  fetchAndRenderHabits();
-  fetchAndRenderActivity();
 }
 
-// ---------------------
-// Dashboard Habits
-// ---------------------
-async function fetchAndRenderHabits() {
-  const container = document.getElementById('dashboard-tab');
-  container.innerHTML = '';
+async function saveProfile() {
+  await supabaseClient.from('userprofile').insert([{
+    user_id: currentUser.id,
+    first_name: firstName.value,
+    last_name: lastName.value,
+    height: height.value,
+    weight: weight.value
+  }]);
 
-  const { data: habits } = await supabaseClient
+  document.getElementById('profile-modal').style.display = 'none';
+}
+
+/* ---------------- Goals ---------------- */
+function openGoalModal() {
+  document.getElementById('goal-modal').style.display = 'flex';
+}
+
+async function saveGoal() {
+  await supabaseClient.from('habits').insert([{
+    user_id: currentUser.id,
+    name: goalName.value,
+    category: goalCategory.value,
+    subtype: goalSubtype.value,
+    cadence: goalCadence.value,
+    active: true
+  }]);
+
+  document.getElementById('goal-modal').style.display = 'none';
+  loadDashboard();
+  loadGoals();
+}
+
+async function deleteGoal(id) {
+  await supabaseClient.from('habits').delete().eq('id', id);
+  loadDashboard();
+  loadGoals();
+}
+
+/* ---------------- Dashboard ---------------- */
+async function loadDashboard() {
+  showTab('dashboard');
+
+  const { data } = await supabaseClient
+    .from('habits')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .eq('active', true);
+
+  dashboard.innerHTML = `<h2>Dashboard</h2>` +
+    data.map(h => `
+      <div>
+        <strong>${h.name}</strong>
+        <div>${h.category} · ${h.subtype} · ${h.cadence}</div>
+      </div><hr/>
+    `).join('');
+}
+
+/* ---------------- Goals Tab ---------------- */
+async function loadGoals() {
+  const { data } = await supabaseClient
     .from('habits')
     .select('*')
     .eq('user_id', currentUser.id);
 
-  const today = dayjs().format("YYYY-MM-DD");
-
-  habits.forEach(habit => {
-    const div = document.createElement('div');
-    div.innerHTML = `
-      <strong>${habit.name} (${habit.category}, ${habit.goal_type})</strong><br/>
-      <input type="checkbox" id="habit-${habit.id}" /> Completed
-      <textarea placeholder="Add reflection..."></textarea>
-      <div class="progress-container">
-        <div>${habit.current_week || 0}/${habit.target_week || 0} (${habit.percent_week || 0}%)</div>
-      </div>
-      <button class="post-btn">Post</button>
-      <hr/>
-    `;
-    container.appendChild(div);
-
-    const checkbox = div.querySelector(`#habit-${habit.id}`);
-    const textarea = div.querySelector('textarea');
-    const postBtn = div.querySelector('.post-btn');
-
-    checkbox.addEventListener('change', async () => {
-      await supabaseClient.from('habit_logs').upsert([{
-        habit_id: habit.id,
-        user_id: currentUser.id,
-        date: today,
-        completed: checkbox.checked,
-        reflection_text: textarea.value
-      }]);
-      fetchAndRenderHabits();
-    });
-
-    postBtn.addEventListener('click', () => {
-      alert('Activity posted!');
-    });
-  });
+  goals.innerHTML = `<h2>Goals</h2>` +
+    data.map(g => `
+      <div>
+        <strong>${g.name}</strong>
+        <div>${g.category} · ${g.subtype} · ${g.cadence}</div>
+        <button onclick="deleteGoal('${g.id}')">Delete</button>
+      </div><hr/>
+    `).join('');
 }
 
-// ---------------------
-// Activity Tab
-// ---------------------
-async function fetchAndRenderActivity() {
-  const container = document.getElementById('activity-tab');
-  container.innerHTML = `<h3>Weekly</h3>`;
-  container.innerHTML += `<p>(Activity feed placeholder)</p>`;
+/* ---------------- Progress ---------------- */
+async function loadProgress() {
+  progress.innerHTML = `
+    <h2>Habit Progress</h2>
+    <p>Weekly and Monthly aggregation will live here.</p>
+  `;
 }
 
-// ---------------------
-// Create Goal
-// ---------------------
-function showCreateGoal() {
-  const name = prompt("Goal name?");
-  if (!name) return;
-  alert(`Goal "${name}" created!`);
-}
+/* ---------------- Activity ---------------- */
+activity.innerHTML = `<h2>Activity</h2><p>Social feed coming soon.</p>`;
 
-// ---------------------
-// Initial Load
-// ---------------------
-renderApp();
-supabaseClient.auth.onAuthStateChange(() => renderApp());
+supabaseClient.auth.onAuthStateChange(initAuth);
+initAuth();
 </script>
 </body>
 </html>
